@@ -121,6 +121,8 @@ consul-mesh-poc/
 | 7 | Consul mesh config entries (ProxyDefaults, Router, Resolver, Ingress) | ✅ Done |
 | 8 | `deploy-all.sh` + `teardown.sh` | ✅ Done |
 | 9 | `CONSUL_NOTES.md` — Istio → Consul reference guide | ✅ Done |
+| — | `.env.example`, `.gitignore`, `.env` loading in deploy script | ✅ Done |
+| — | CockroachDB `verify-full` TLS — CA cert as k8s Secret | ✅ Done |
 
 ---
 
@@ -130,18 +132,24 @@ See [QUICKSTART.md](./QUICKSTART.md) for the full walkthrough. Short version:
 
 ```bash
 # 1. Prerequisites — see K8S.md
-# 2. Install Consul
+
+# 2. Download the CockroachDB CA certificate (one-time, per machine)
+curl --create-dirs -o $HOME/.postgresql/root.crt \
+  'https://cockroachlabs.cloud/clusters/<your-cluster-id>/cert'
+
+# 3. Configure your environment
+cp .env.example .env
+# Edit .env — fill in DB_HOST, DB_PASSWORD, and confirm DB_SSL_CERT_PATH
+
+# 4. Install Consul
 ./scripts/install-consul.sh
 
-# 3. Set CockroachDB connection string
-export DATABASE_URL="postgresql://<user>:<pass>@<host>/<db>?sslmode=verify-full"
-
-# 4. Build images and deploy
+# 5. Build images and deploy (reads .env automatically)
 ./scripts/deploy-all.sh
 
-# 5. Open the UI
+# 6. Open the UI
 kubectl port-forward svc/consul-ui -n consul 8500:80   # Consul UI
-# UI app is available via the IngressGateway LoadBalancer on localhost:8080
+# App UI is available via the IngressGateway LoadBalancer on localhost:8080
 ```
 
 ---
@@ -171,6 +179,39 @@ For a detailed explanation of each, see [CONSUL_NOTES.md](./CONSUL_NOTES.md) (wr
 - A CockroachDB Cloud cluster (free tier works)
 
 See [K8S.md](./K8S.md) for detailed setup instructions.
+
+---
+
+## Secrets Management
+
+This project uses a `.env` file (git-ignored) to hold all credentials. A template is provided:
+
+```bash
+cp .env.example .env
+```
+
+Key variables:
+
+| Variable | Description |
+|----------|-------------|
+| `DB_HOST` | CockroachDB cluster hostname (no port) |
+| `DB_NAME` | Database name (default: `defaultdb`) |
+| `DB_USER` | SQL username |
+| `DB_PASSWORD` | SQL password |
+| `DB_SSL` | Set to `true` for CockroachDB Cloud |
+| `DB_SSL_CERT_PATH` | Path to CA cert (default: `~/.postgresql/root.crt`) |
+| `KUBE_CONTEXT` | kubectl context guard (default: `docker-desktop`) |
+| `API_SERVER_IMAGE` | Docker image tag for api-server |
+| `UI_APP_IMAGE` | Docker image tag for ui-app |
+
+`deploy-all.sh` creates two k8s Secrets automatically:
+- **`cockroachdb-secret`** — DB host, name, user, password (referenced by env vars in the pod)
+- **`cockroachdb-ca-cert`** — CA certificate file, mounted at `/etc/ssl/cockroachdb/root.crt` in the api-server pod
+
+The `pg` driver is configured with `sslmode: verify-full` using the mounted cert, matching the CockroachDB Cloud connection string:
+```
+postgresql://user:pass@host:26257/defaultdb?sslmode=verify-full
+```
 
 ---
 
