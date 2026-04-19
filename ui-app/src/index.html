@@ -35,29 +35,38 @@
 
   <script>
     const status = document.getElementById('status');
+    const itemsBody = document.getElementById('items-body');
 
     async function loadItems() {
       try {
         const res = await fetch('/api/items');
+        if (!res.ok) throw new Error(await res.text());
         const items = await res.json();
-        const tbody = document.getElementById('items-body');
-        tbody.innerHTML = items.map(i => `
+        itemsBody.innerHTML = items.map(i => `
           <tr>
             <td>${i.id}</td>
             <td>${escHtml(i.name)}</td>
             <td>${escHtml(i.description || '')}</td>
             <td><button class="del" data-id="${i.id}">Delete</button></td>
           </tr>`).join('');
-        document.getElementById('items-body').addEventListener('click', async e => {
-          if (e.target.matches('button.del')) {
-            await fetch(`/api/items/${e.target.dataset.id}`, { method: 'DELETE' });
-            loadItems();
-          }
-        }, { once: true });
+        status.textContent = '';
       } catch (e) {
         status.textContent = 'Error loading items: ' + e.message;
       }
     }
+
+    itemsBody.addEventListener('click', async (e) => {
+      const button = e.target.closest('button.del');
+      if (!button) return;
+
+      try {
+        const res = await fetch(`/api/items/${button.dataset.id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error(await res.text());
+        await loadItems();
+      } catch (err) {
+        status.textContent = 'Error deleting item: ' + err.message;
+      }
+    });
 
     document.getElementById('item-form').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -72,7 +81,8 @@
         if (!res.ok) throw new Error(await res.text());
         document.getElementById('name').value = '';
         document.getElementById('description').value = '';
-        loadItems();
+        status.textContent = '';
+        await loadItems();
       } catch (e) {
         status.textContent = 'Error adding item: ' + e.message;
       }

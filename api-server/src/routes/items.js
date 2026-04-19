@@ -3,6 +3,25 @@ const { pool } = require('../db/cockroach');
 
 const router = Router();
 
+function parseItemPayload(body) {
+  const { name, description } = body || {};
+
+  if (typeof name !== 'string' || !name.trim()) {
+    return { error: 'name is required' };
+  }
+
+  if (description !== undefined && description !== null && typeof description !== 'string') {
+    return { error: 'description must be a string' };
+  }
+
+  return {
+    value: {
+      name: name.trim(),
+      description: typeof description === 'string' ? description.trim() : null,
+    },
+  };
+}
+
 // GET all items
 router.get('/', async (_req, res) => {
   try {
@@ -26,7 +45,10 @@ router.get('/:id', async (req, res) => {
 
 // CREATE item
 router.post('/', async (req, res) => {
-  const { name, description } = req.body;
+  const payload = parseItemPayload(req.body);
+  if (payload.error) return res.status(400).json({ error: payload.error });
+
+  const { name, description } = payload.value;
   try {
     const { rows } = await pool.query(
       'INSERT INTO items (name, description) VALUES ($1, $2) RETURNING *',
@@ -40,7 +62,10 @@ router.post('/', async (req, res) => {
 
 // UPDATE item
 router.put('/:id', async (req, res) => {
-  const { name, description } = req.body;
+  const payload = parseItemPayload(req.body);
+  if (payload.error) return res.status(400).json({ error: payload.error });
+
+  const { name, description } = payload.value;
   try {
     const { rows } = await pool.query(
       'UPDATE items SET name = $1, description = $2 WHERE id = $3 RETURNING *',
