@@ -1,4 +1,14 @@
 const { Pool } = require('pg');
+const fs = require('fs');
+
+function buildSslConfig() {
+  if (process.env.DB_SSL !== 'true') return false;
+  const certPath = process.env.DB_SSL_ROOT_CERT || '/etc/ssl/cockroachdb/root.crt';
+  return {
+    rejectUnauthorized: true,
+    ca: fs.readFileSync(certPath).toString(),
+  };
+}
 
 const pool = new Pool({
   host: process.env.DB_HOST || 'cockroachdb',
@@ -6,7 +16,7 @@ const pool = new Pool({
   database: process.env.DB_NAME || 'defaultdb',
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '',
-  ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
+  ssl: buildSslConfig(),
 });
 
 module.exports = { pool };

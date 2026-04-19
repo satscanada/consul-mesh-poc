@@ -56,6 +56,22 @@ info "Building ui-app image (${UI_APP_IMAGE})"
 docker build -t "${UI_APP_IMAGE}" "${REPO_ROOT}/ui-app"
 
 # ---------------------------------------------------------------------------
+# CockroachDB CA certificate secret
+# ---------------------------------------------------------------------------
+info "Setting up cockroachdb-ca-cert secret"
+DB_SSL_CERT_PATH="${DB_SSL_CERT_PATH:-${HOME}/.postgresql/root.crt}"
+if [[ ! -f "${DB_SSL_CERT_PATH}" ]]; then
+  die "CockroachDB CA cert not found at '${DB_SSL_CERT_PATH}'.
+  Download it first:
+    curl --create-dirs -o \$HOME/.postgresql/root.crt \\
+      'https://cockroachlabs.cloud/clusters/<your-cluster-id>/cert'
+  Then set DB_SSL_CERT_PATH in your .env if needed."
+fi
+kubectl create secret generic cockroachdb-ca-cert \
+  --from-file=root.crt="${DB_SSL_CERT_PATH}" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+# ---------------------------------------------------------------------------
 # CockroachDB secret — read connection parts from env or prompt
 # ---------------------------------------------------------------------------
 info "Setting up cockroachdb-secret"
