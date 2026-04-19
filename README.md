@@ -71,7 +71,7 @@ consul-mesh-poc/
 ├── api-server/
 │   ├── src/
 │   │   ├── routes/items.js      # CRUD routes for items entity
-│   │   ├── db/cockroach.js      # pg Pool + query helper
+│   │   ├── db/cockroach.js      # pg Pool + initSchema (auto-creates items table)
 │   │   └── index.js             # Express app entry point
 │   ├── Dockerfile
 │   ├── package.json
@@ -87,8 +87,9 @@ consul-mesh-poc/
 │   ├── package.json
 │   └── k8s/
 │       ├── deployment.yaml      # Consul inject annotation
-│       ├── service.yaml         # ClusterIP :8080
-│       └── serviceintentions.yaml # Allow ui-app → api-server
+│       ├── service.yaml         # NodePort :4000
+│       ├── servicedefaults.yaml # Consul CRD — protocol: http (required for IngressGateway)
+│       └── serviceintentions.yaml # Allow ui-app → api-server, deny all others
 ├── consul/
 │   ├── helm-values.yaml         # Consul OSS Helm config (dc1, mTLS, UI, metrics)
 │   ├── proxydefaults.yaml       # Global mTLS strict + protocol http
@@ -97,8 +98,9 @@ consul-mesh-poc/
 │   └── ingressgateway.yaml      # Expose ui-app on port 8080
 ├── scripts/
 │   ├── install-consul.sh        # Helm install with safety checks
-│   ├── deploy-all.sh            # Build images, create secret, apply manifests
-│   └── teardown.sh              # Remove apps (keeps Consul)
+│   ├── deploy-all.sh            # Build images, create secrets, apply manifests
+│   └── teardown.sh              # Remove apps + CRDs in correct order (keeps Consul)
+├── consul-mesh-poc.postman_collection.json  # Postman collection for items API
 ├── README.md                    # This file
 ├── QUICKSTART.md                # End-to-end run guide
 ├── K8S.md                       # Docker Desktop + Consul prerequisites
@@ -123,6 +125,9 @@ consul-mesh-poc/
 | 9 | `CONSUL_NOTES.md` — Istio → Consul reference guide | ✅ Done |
 | — | `.env.example`, `.gitignore`, `.env` loading in deploy script | ✅ Done |
 | — | CockroachDB `verify-full` TLS — CA cert as k8s Secret | ✅ Done |
+| — | `ui-app/k8s/servicedefaults.yaml` — protocol: http for IngressGateway compat | ✅ Done |
+| — | Auto schema init — `items` table created on `api-server` startup | ✅ Done |
+| — | Postman collection for items API | ✅ Done |
 
 ---
 
@@ -147,9 +152,12 @@ cp .env.example .env
 # 5. Build images and deploy (reads .env automatically)
 ./scripts/deploy-all.sh
 
-# 6. Open the UI
-kubectl port-forward svc/consul-ui -n consul 8500:80   # Consul UI
-# App UI is available via the IngressGateway LoadBalancer on localhost:8080
+# 6. Open the UI — Docker Desktop exposes the LoadBalancer directly
+open http://localhost:8080
+
+# 7. (Optional) Open the Consul UI
+kubectl port-forward svc/consul-ui -n consul 8500:80
+open http://localhost:8500
 ```
 
 ---

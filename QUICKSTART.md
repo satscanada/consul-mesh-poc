@@ -76,17 +76,20 @@ This script will:
 4. Apply all Kubernetes manifests for `api-server` and `ui-app`
 5. Wait for both deployments to roll out
 
+> **Database schema**: The `api-server` automatically runs `CREATE TABLE IF NOT EXISTS items` on startup — no manual schema setup required.
+
 ---
 
 ## 5. Access the UI
 
-Port-forward the Consul IngressGateway to reach the ui-app:
+On Docker Desktop the Consul IngressGateway LoadBalancer is exposed directly on `localhost`. Open:
 
-```bash
-kubectl port-forward svc/consul-ingress-gateway -n consul 8080:8080
-```
+[http://localhost:8080](http://localhost:8080)
 
-Then open: [http://localhost:8080](http://localhost:8080)
+> Port-forward is **not** needed on Docker Desktop. If you are on a non-Docker-Desktop cluster, use:
+> ```bash
+> kubectl port-forward svc/consul-ingress-gateway -n consul 8080:8080
+> ```
 
 ---
 

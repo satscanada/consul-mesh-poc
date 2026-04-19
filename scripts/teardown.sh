@@ -30,6 +30,7 @@ kubectl delete -f "${REPO_ROOT}/consul/ingressgateway.yaml"   --ignore-not-found
 kubectl delete -f "${REPO_ROOT}/consul/servicerouter.yaml"    --ignore-not-found
 kubectl delete -f "${REPO_ROOT}/consul/serviceresolver.yaml"  --ignore-not-found
 kubectl delete -f "${REPO_ROOT}/api-server/k8s/servicedefaults.yaml" --ignore-not-found
+kubectl delete -f "${REPO_ROOT}/ui-app/k8s/servicedefaults.yaml"     --ignore-not-found
 kubectl delete -f "${REPO_ROOT}/ui-app/k8s/serviceintentions.yaml"   --ignore-not-found
 kubectl delete -f "${REPO_ROOT}/consul/proxydefaults.yaml"    --ignore-not-found
 

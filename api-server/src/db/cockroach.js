@@ -19,4 +19,14 @@ const pool = new Pool({
   ssl: buildSslConfig(),
 });
 
-module.exports = { pool };
+async function initSchema() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS items (
+      id          INT PRIMARY KEY DEFAULT unique_rowid(),
+      name        STRING NOT NULL,
+      description STRING
+    )
+  `);
+}
+
+module.exports = { pool, initSchema };

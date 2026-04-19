@@ -119,6 +119,7 @@ kubectl apply -f "${REPO_ROOT}/api-server/k8s/deployment.yaml"
 # ui-app (intentions first so deny-all is in place before pods start)
 # ---------------------------------------------------------------------------
 info "Deploying ui-app"
+kubectl apply -f "${REPO_ROOT}/ui-app/k8s/servicedefaults.yaml"
 kubectl apply -f "${REPO_ROOT}/ui-app/k8s/serviceintentions.yaml"
 kubectl apply -f "${REPO_ROOT}/ui-app/k8s/service.yaml"
 kubectl apply -f "${REPO_ROOT}/ui-app/k8s/deployment.yaml"
