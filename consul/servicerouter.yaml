@@ -5,11 +5,14 @@ metadata:
   namespace: default
 spec:
   routes:
-    # Apply a request timeout to all traffic going to api-server
+    # Match /api/* traffic to api-server. prefixRewrite preserves the full
+    # path (Envoy replaces the matched prefix with the same value, so
+    # /api/items stays /api/items at the destination).
     - match:
         http:
-          pathPrefix: /
+          pathPrefix: /api/
       destination:
         service: api-server
         serviceSubset: stable
+        prefixRewrite: /api/
         requestTimeout: 10s
