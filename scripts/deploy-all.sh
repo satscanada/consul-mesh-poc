@@ -8,6 +8,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+info()  { echo "==> $*"; }
+warn()  { echo "WARNING: $*" >&2; }
+die()   { echo "ERROR: $*" >&2; exit 1; }
+
+# ---------------------------------------------------------------------------
 # Load .env if present (copy .env.example → .env and fill in values)
 # ---------------------------------------------------------------------------
 ENV_FILE="${REPO_ROOT}/.env"
@@ -22,13 +29,6 @@ else
   warn ".env not found — falling back to environment variables / interactive prompts."
   warn "Copy .env.example to .env and fill in values to skip prompts."
 fi
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-info()  { echo "==> $*"; }
-warn()  { echo "WARNING: $*" >&2; }
-die()   { echo "ERROR: $*" >&2; exit 1; }
 
 # ---------------------------------------------------------------------------
 # Guard: must be on docker-desktop context
