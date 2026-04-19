@@ -5,7 +5,7 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 4000;
 // api-server is reached through the Consul Connect sidecar on localhost
-const API_URL = process.env.API_URL || 'http://api-server:3000'\;
+const API_URL = process.env.API_URL || 'http://api-server:3000';
 
 app.use(express.static(path.join(__dirname, 'src')));
 app.use(express.json());

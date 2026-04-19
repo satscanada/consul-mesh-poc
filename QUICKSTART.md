@@ -39,15 +39,26 @@ Then open the Consul UI using the port-forward command printed at the end of the
 
 ---
 
-## 3. Set Your CockroachDB Connection String
+## 3. Set Your CockroachDB Credentials
 
-Export the connection string from CockroachDB Cloud before deploying:
+Copy the example env file and fill in your CockroachDB Cloud values:
 
 ```bash
-export DATABASE_URL="postgresql://<user>:<password>@<host>:<port>/<database>?sslmode=verify-full"
+cp .env.example .env
+# Edit .env and set: DB_HOST, DB_NAME, DB_USER, DB_PASSWORD, DB_SSL_CERT_PATH
 ```
 
-> Source: **shell environment variable** — consumed by `scripts/deploy-all.sh` which creates the `cockroachdb-secret` Kubernetes Secret.
+`deploy-all.sh` will source `.env` automatically and create two Kubernetes Secrets:
+- `cockroachdb-secret` — connection credentials
+- `cockroachdb-ca-cert` — CA certificate for TLS verification
+
+If you prefer not to use `.env`, export the variables directly:
+
+```bash
+export DB_HOST="<host>.cockroachlabs.cloud"
+export DB_PASSWORD="<password>"
+# DB_NAME defaults to "defaultdb", DB_USER defaults to "root"
+```
 
 ---
 
@@ -59,11 +70,11 @@ chmod +x scripts/deploy-all.sh
 ```
 
 This script will:
-1. Build `api-server:local` and `ui-app:local` Docker images
-2. Create the `cockroachdb-secret` from `$DATABASE_URL`
-3. Apply all Kubernetes manifests for `api-server` and `ui-app`
-4. Apply all Consul config entries
-5. Print pod status
+1. Build `api-server:latest` and `ui-app:latest` Docker images
+2. Create the `cockroachdb-ca-cert` and `cockroachdb-secret` Kubernetes Secrets
+3. Apply all Consul mesh config entries (proxydefaults, serviceresolver, servicerouter, ingressgateway)
+4. Apply all Kubernetes manifests for `api-server` and `ui-app`
+5. Wait for both deployments to roll out
 
 ---
 

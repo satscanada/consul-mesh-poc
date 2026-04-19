@@ -70,6 +70,7 @@ fi
 kubectl create secret generic cockroachdb-ca-cert \
   --from-file=root.crt="${DB_SSL_CERT_PATH}" \
   --dry-run=client -o yaml | kubectl apply -f -
+kubectl get secret cockroachdb-ca-cert -n default > /dev/null || die "cockroachdb-ca-cert secret not found after creation"
 
 # ---------------------------------------------------------------------------
 # CockroachDB secret — read connection parts from env or prompt
@@ -95,6 +96,7 @@ kubectl create secret generic cockroachdb-secret \
   --from-literal=username="${DB_USER}" \
   --from-literal=password="${DB_PASSWORD}" \
   --dry-run=client -o yaml | kubectl apply -f -
+kubectl get secret cockroachdb-secret -n default > /dev/null || die "cockroachdb-secret not found after creation"
 
 # ---------------------------------------------------------------------------
 # Consul mesh config entries (apply before workloads so intentions are ready)
@@ -125,10 +127,10 @@ kubectl apply -f "${REPO_ROOT}/ui-app/k8s/deployment.yaml"
 # Wait for rollouts
 # ---------------------------------------------------------------------------
 info "Waiting for api-server rollout"
-kubectl rollout status deployment/api-server --timeout=120s
+kubectl rollout status deployment/api-server -n default --timeout=120s
 
 info "Waiting for ui-app rollout"
-kubectl rollout status deployment/ui-app --timeout=120s
+kubectl rollout status deployment/ui-app -n default --timeout=120s
 
 # ---------------------------------------------------------------------------
 # Summary

@@ -22,32 +22,34 @@ if [[ "${CURRENT_CONTEXT}" != "docker-desktop" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Remove application workloads (ignore "not found" errors)
-# ---------------------------------------------------------------------------
-info "Removing ui-app"
-kubectl delete -f "${REPO_ROOT}/ui-app/k8s/deployment.yaml"      --ignore-not-found
-kubectl delete -f "${REPO_ROOT}/ui-app/k8s/service.yaml"         --ignore-not-found
-kubectl delete -f "${REPO_ROOT}/ui-app/k8s/serviceintentions.yaml" --ignore-not-found
-
-info "Removing api-server"
-kubectl delete -f "${REPO_ROOT}/api-server/k8s/deployment.yaml"      --ignore-not-found
-kubectl delete -f "${REPO_ROOT}/api-server/k8s/service.yaml"         --ignore-not-found
-kubectl delete -f "${REPO_ROOT}/api-server/k8s/servicedefaults.yaml" --ignore-not-found
-
-# ---------------------------------------------------------------------------
-# Remove Consul mesh config entries
+# Remove Consul mesh config entries (before workloads so sidecars are still
+# running when Consul processes the finalizers)
 # ---------------------------------------------------------------------------
 info "Removing Consul mesh config entries"
 kubectl delete -f "${REPO_ROOT}/consul/ingressgateway.yaml"   --ignore-not-found
 kubectl delete -f "${REPO_ROOT}/consul/servicerouter.yaml"    --ignore-not-found
 kubectl delete -f "${REPO_ROOT}/consul/serviceresolver.yaml"  --ignore-not-found
+kubectl delete -f "${REPO_ROOT}/api-server/k8s/servicedefaults.yaml" --ignore-not-found
+kubectl delete -f "${REPO_ROOT}/ui-app/k8s/serviceintentions.yaml"   --ignore-not-found
 kubectl delete -f "${REPO_ROOT}/consul/proxydefaults.yaml"    --ignore-not-found
 
 # ---------------------------------------------------------------------------
-# Remove the CockroachDB secret
+# Remove application workloads (ignore "not found" errors)
 # ---------------------------------------------------------------------------
-info "Removing cockroachdb-secret"
-kubectl delete secret cockroachdb-secret --ignore-not-found
+info "Removing ui-app"
+kubectl delete -f "${REPO_ROOT}/ui-app/k8s/deployment.yaml"  --ignore-not-found
+kubectl delete -f "${REPO_ROOT}/ui-app/k8s/service.yaml"     --ignore-not-found
+
+info "Removing api-server"
+kubectl delete -f "${REPO_ROOT}/api-server/k8s/deployment.yaml" --ignore-not-found
+kubectl delete -f "${REPO_ROOT}/api-server/k8s/service.yaml"    --ignore-not-found
+
+# ---------------------------------------------------------------------------
+# Remove the CockroachDB secrets
+# ---------------------------------------------------------------------------
+info "Removing cockroachdb secrets"
+kubectl delete secret cockroachdb-secret   --ignore-not-found
+kubectl delete secret cockroachdb-ca-cert  --ignore-not-found
 
 echo ""
 echo "================================================================"
