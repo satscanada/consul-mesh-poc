@@ -1,5 +1,9 @@
-const { Pool } = require('pg');
+const { Pool, types } = require('pg');
 const fs = require('fs');
+
+// CockroachDB INT maps to pg OID 20 (int8). Node's float64 cannot safely
+// represent values > Number.MAX_SAFE_INTEGER, so keep them as strings.
+types.setTypeParser(20, val => val);
 
 function buildSslConfig() {
   if (process.env.DB_SSL !== 'true') return false;

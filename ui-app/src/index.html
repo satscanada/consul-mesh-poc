@@ -46,16 +46,17 @@
             <td>${i.id}</td>
             <td>${escHtml(i.name)}</td>
             <td>${escHtml(i.description || '')}</td>
-            <td><button class="del" onclick="deleteItem(${i.id})">Delete</button></td>
+            <td><button class="del" data-id="${i.id}">Delete</button></td>
           </tr>`).join('');
+        document.getElementById('items-body').addEventListener('click', async e => {
+          if (e.target.matches('button.del')) {
+            await fetch(`/api/items/${e.target.dataset.id}`, { method: 'DELETE' });
+            loadItems();
+          }
+        }, { once: true });
       } catch (e) {
         status.textContent = 'Error loading items: ' + e.message;
       }
-    }
-
-    async function deleteItem(id) {
-      await fetch(`/api/items/${id}`, { method: 'DELETE' });
-      loadItems();
     }
 
     document.getElementById('item-form').addEventListener('submit', async (e) => {
