@@ -1,0 +1,8 @@
+apiVersion: consul.hashicorp.com/v1alpha1
+kind: ServiceDefaults
+metadata:
+  name: api-server
+  namespace: default
+spec:
+  # Declare the protocol so Consul can do L7 traffic management
+  protocol: http

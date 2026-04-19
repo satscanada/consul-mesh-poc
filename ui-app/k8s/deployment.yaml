@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ui-app
+  namespace: default
+  labels:
+    app: ui-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ui-app
+  template:
+    metadata:
+      labels:
+        app: ui-app
+      annotations:
+        # Inject Envoy sidecar — traffic to api-server goes through the mesh
+        consul.hashicorp.com/connect-inject: "true"
+        # Tells the injector that this service calls api-server
+        consul.hashicorp.com/connect-service-upstreams: "api-server:3000"
+    spec:
+      containers:
+        - name: ui-app
+          image: ui-app:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 4000
+          env:
+            - name: PORT
+              value: "4000"
+            # Upstream is exposed on localhost by the Envoy sidecar
+            - name: API_URL
+              value: "http://localhost:3000"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 4000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 4000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"

@@ -1,0 +1,14 @@
+apiVersion: consul.hashicorp.com/v1alpha1
+kind: IngressGateway
+metadata:
+  name: ingress-gateway
+  namespace: default
+spec:
+  listeners:
+    - port: 8080
+      protocol: http
+      services:
+        # Expose the ui-app through the Consul ingress gateway on port 8080
+        - name: ui-app
+          hosts:
+            - "*"

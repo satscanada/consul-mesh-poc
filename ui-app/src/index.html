@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Consul Mesh PoC — Items</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
+    h1 { color: #c0392b; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+    th, td { padding: 0.5rem 0.75rem; border: 1px solid #ddd; text-align: left; }
+    th { background: #f5f5f5; }
+    form { display: flex; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap; }
+    input { flex: 1; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; }
+    button { padding: 0.4rem 0.9rem; border: none; border-radius: 4px; cursor: pointer; background: #c0392b; color: #fff; }
+    button.del { background: #888; font-size: 0.8rem; }
+    #status { margin-top: 0.75rem; color: #555; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <h1>Items — Consul Mesh PoC</h1>
+
+  <table id="items-table">
+    <thead><tr><th>ID</th><th>Name</th><th>Description</th><th></th></tr></thead>
+    <tbody id="items-body"></tbody>
+  </table>
+
+  <form id="item-form">
+    <input id="name"        placeholder="Name"        required />
+    <input id="description" placeholder="Description" />
+    <button type="submit">Add Item</button>
+  </form>
+
+  <p id="status"></p>
+
+  <script>
+    const status = document.getElementById('status');
+
+    async function loadItems() {
+      try {
+        const res = await fetch('/api/items');
+        const items = await res.json();
+        const tbody = document.getElementById('items-body');
+        tbody.innerHTML = items.map(i => `
+          <tr>
+            <td>${i.id}</td>
+            <td>${escHtml(i.name)}</td>
+            <td>${escHtml(i.description || '')}</td>
+            <td><button class="del" onclick="deleteItem(${i.id})">Delete</button></td>
+          </tr>`).join('');
+      } catch (e) {
+        status.textContent = 'Error loading items: ' + e.message;
+      }
+    }
+
+    async function deleteItem(id) {
+      await fetch(`/api/items/${id}`, { method: 'DELETE' });
+      loadItems();
+    }
+
+    document.getElementById('item-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = document.getElementById('name').value.trim();
+      const description = document.getElementById('description').value.trim();
+      try {
+        const res = await fetch('/api/items', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, description }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        document.getElementById('name').value = '';
+        document.getElementById('description').value = '';
+        loadItems();
+      } catch (e) {
+        status.textContent = 'Error adding item: ' + e.message;
+      }
+    });
+
+    function escHtml(str) {
+      return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    loadItems();
+  </script>
+</body>
+</html>

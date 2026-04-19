@@ -1,0 +1,16 @@
+apiVersion: consul.hashicorp.com/v1alpha1
+kind: ServiceRouter
+metadata:
+  name: api-server
+  namespace: default
+spec:
+  routes:
+    # Route /api/items/* to the stable subset of api-server
+    - match:
+        http:
+          pathPrefix: /api/
+      destination:
+        service: api-server
+        serviceSubset: stable
+        # Add a request timeout at the L7 proxy layer
+        requestTimeout: 10s

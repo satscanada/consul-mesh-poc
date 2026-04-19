@@ -1,0 +1,15 @@
+apiVersion: consul.hashicorp.com/v1alpha1
+kind: ServiceIntentions
+metadata:
+  name: api-server
+  namespace: default
+spec:
+  destination:
+    name: api-server
+  sources:
+    # Allow ui-app to call api-server through the mesh
+    - name: ui-app
+      action: allow
+    # Deny all other sources by default (explicit deny-all)
+    - name: "*"
+      action: deny

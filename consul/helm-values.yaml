@@ -1,0 +1,102 @@
+# Consul OSS Helm values — Docker Desktop single-node local dev
+# Chart: hashicorp/consul  (1.3.x or later)
+# Reference: https://developer.hashicorp.com/consul/docs/k8s/helm
+
+global:
+  name: consul
+  datacenter: dc1
+
+  # -------------------------------------------------------------------
+  # TLS — encrypts all Consul agent RPC traffic and enables mTLS in mesh
+  # "Strict" mTLS enforcement for service-to-service traffic is set via
+  # the ProxyDefaults config entry (consul/proxydefaults.yaml, Step 7).
+  # -------------------------------------------------------------------
+  tls:
+    enabled: true
+    enableAutoEncrypt: true   # clients get certs from server automatically
+    verify: true              # mutual TLS for agent RPC
+    httpsOnly: false          # allow HTTP health-check endpoints internally
+
+  # -------------------------------------------------------------------
+  # Metrics — exposes Prometheus-compatible metrics from agents & proxies
+  # -------------------------------------------------------------------
+  metrics:
+    enabled: true
+    enableAgentMetrics: true
+    agentMetricsRetentionTime: "1m"
+    enableHostMetrics: true
+
+# -------------------------------------------------------------------
+# Server — single replica for local dev (not HA)
+# -------------------------------------------------------------------
+server:
+  replicas: 1
+  bootstrapExpect: 1
+  # Disable PodDisruptionBudget — it blocks single-replica restarts
+  disruptionBudget:
+    enabled: false
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+# -------------------------------------------------------------------
+# Connect Inject — Envoy sidecar injection webhook
+# default: false means injection is opt-in via annotation:
+#   consul.hashicorp.com/connect-inject: "true"
+# -------------------------------------------------------------------
+connectInject:
+  enabled: true
+  default: false
+  metrics:
+    defaultEnabled: true
+    defaultEnableMerging: false
+
+# -------------------------------------------------------------------
+# Controller — reconciles Consul CRDs (config entries) with the catalog
+# Required for ServiceDefaults, ServiceIntentions, etc. applied via kubectl
+# -------------------------------------------------------------------
+controller:
+  enabled: true
+
+# -------------------------------------------------------------------
+# UI — Consul web dashboard
+# Accessed via: kubectl port-forward svc/consul-ui -n consul 8500:80
+# -------------------------------------------------------------------
+ui:
+  enabled: true
+  service:
+    type: ClusterIP
+  metrics:
+    enabled: true
+    provider: prometheus
+
+# -------------------------------------------------------------------
+# Ingress Gateway — exposes mesh services outside the cluster
+# Named "ingress-gateway"; referenced in consul/ingressgateway.yaml
+# -------------------------------------------------------------------
+ingressGateways:
+  enabled: true
+  defaults:
+    replicas: 1
+    # hostNetwork + ClusterFirstWithHostNet: fixes "cannot bind HOST_IP:20200"
+    # on Docker Desktop where the pod network namespace doesn't include the
+    # node IP that consul-dataplane passes to Envoy as -envoy-ready-bind-addr.
+    hostNetwork: true
+    dnsPolicy: ClusterFirstWithHostNet
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+  gateways:
+    - name: ingress-gateway
+      service:
+        type: LoadBalancer   # Docker Desktop exposes LoadBalancer on localhost
+        ports:
+          - port: 8080

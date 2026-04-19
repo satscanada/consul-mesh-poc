@@ -1,0 +1,14 @@
+apiVersion: consul.hashicorp.com/v1alpha1
+kind: ServiceResolver
+metadata:
+  name: api-server
+  namespace: default
+spec:
+  # How long Consul waits for a health check before marking an instance unhealthy
+  connectTimeout: 5s
+  # Default subset used when no explicit subset is requested
+  defaultSubset: stable
+  subsets:
+    stable:
+      # Only route to instances whose Kubernetes pod is passing health checks
+      onlyPassing: true

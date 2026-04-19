@@ -1,0 +1,14 @@
+apiVersion: consul.hashicorp.com/v1alpha1
+kind: ProxyDefaults
+metadata:
+  # ProxyDefaults is a global singleton — name must be "global"
+  name: global
+  namespace: default
+spec:
+  # Enforce mutual TLS for all service-to-service traffic in the mesh
+  meshGateway:
+    mode: local
+  config:
+    # Envoy access log to stdout for easy kubectl logs inspection
+    envoy_extra_static_clusters_json: ""
+  transparentProxy: {}
