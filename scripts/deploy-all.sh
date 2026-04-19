@@ -8,6 +8,22 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # ---------------------------------------------------------------------------
+# Load .env if present (copy .env.example → .env and fill in values)
+# ---------------------------------------------------------------------------
+ENV_FILE="${REPO_ROOT}/.env"
+if [[ -f "${ENV_FILE}" ]]; then
+  info "Loading ${ENV_FILE}"
+  # Export each non-comment, non-blank line
+  set -o allexport
+  # shellcheck source=/dev/null
+  source "${ENV_FILE}"
+  set +o allexport
+else
+  warn ".env not found — falling back to environment variables / interactive prompts."
+  warn "Copy .env.example to .env and fill in values to skip prompts."
+fi
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 info()  { echo "==> $*"; }
@@ -20,8 +36,9 @@ die()   { echo "ERROR: $*" >&2; exit 1; }
 info "Verifying kubectl context"
 CURRENT_CONTEXT=$(kubectl config current-context)
 echo "    Active context: ${CURRENT_CONTEXT}"
-if [[ "${CURRENT_CONTEXT}" != "docker-desktop" ]]; then
-  warn "Current context is '${CURRENT_CONTEXT}', not 'docker-desktop'."
+EXPECTED_CONTEXT="${KUBE_CONTEXT:-docker-desktop}"
+if [[ "${CURRENT_CONTEXT}" != "${EXPECTED_CONTEXT}" ]]; then
+  warn "Current context is '${CURRENT_CONTEXT}', not '${EXPECTED_CONTEXT}'."
   read -r -p "Continue anyway? [y/N] " confirm
   [[ "${confirm}" =~ ^[Yy]$ ]] || { echo "Aborted."; exit 1; }
 fi
@@ -29,11 +46,14 @@ fi
 # ---------------------------------------------------------------------------
 # Build Docker images (uses Docker Desktop's built-in daemon)
 # ---------------------------------------------------------------------------
-info "Building api-server image"
-docker build -t api-server:latest "${REPO_ROOT}/api-server"
+API_SERVER_IMAGE="${API_SERVER_IMAGE:-api-server:latest}"
+UI_APP_IMAGE="${UI_APP_IMAGE:-ui-app:latest}"
 
-info "Building ui-app image"
-docker build -t ui-app:latest "${REPO_ROOT}/ui-app"
+info "Building api-server image (${API_SERVER_IMAGE})"
+docker build -t "${API_SERVER_IMAGE}" "${REPO_ROOT}/api-server"
+
+info "Building ui-app image (${UI_APP_IMAGE})"
+docker build -t "${UI_APP_IMAGE}" "${REPO_ROOT}/ui-app"
 
 # ---------------------------------------------------------------------------
 # CockroachDB secret — read connection parts from env or prompt

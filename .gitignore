@@ -1,0 +1,9 @@
+# Dependencies
+node_modules/
+
+# Local env — contains secrets, never commit
+.env
+
+# Build / OS artefacts
+.DS_Store
+*.log
