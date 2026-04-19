@@ -5,12 +5,11 @@ metadata:
   namespace: default
 spec:
   routes:
-    # Route /api/items/* to the stable subset of api-server
+    # Apply a request timeout to all traffic going to api-server
     - match:
         http:
-          pathPrefix: /api/
+          pathPrefix: /
       destination:
         service: api-server
         serviceSubset: stable
-        # Add a request timeout at the L7 proxy layer
         requestTimeout: 10s
