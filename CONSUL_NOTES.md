@@ -144,6 +144,7 @@ kubectl exec -n consul deploy/consul-server -- \
 | Config entry not applied | Controller not enabled | Set `controller.enabled: true` in Helm values |
 | Pod fails readiness | Sidecar not injected | Check `connectInject` webhook is running; verify annotation |
 | Ingress returns 503 | Service not registered or no intention | Check catalog + add intention for ingress → service |
+| Upstream returns 404 on valid path | `pathPrefix` in ServiceRouter strips the prefix before forwarding | Add `prefixRewrite: <same-prefix>` to the destination to preserve the path |
 
 ---
 
@@ -364,6 +365,7 @@ spec:
       destination:
         service: api-server
         serviceSubset: stable
+        prefixRewrite: /api/
         requestTimeout: 10s
 ```
 
@@ -372,15 +374,21 @@ inspects HTTP path, headers, and method to decide where a request goes.
 
 | Field | What it does |
 |-------|-------------|
-| `match.http.pathPrefix: /api/` | Matches any request whose URL starts with `/api/`. This covers `/api/items`, `/api/items/1`, `/api/version`, etc. |
+| `match.http.pathPrefix: /api/` | Matches any request whose URL starts with `/api/`. This covers `/api/items`, `/api/items/1`, `/api/version`, etc. The router name (`api-server`) scopes it to only traffic destined for that service — adding a second service's router won't interfere. |
 | `destination.service: api-server` | The Consul-registered service name to forward matched requests to. |
 | `destination.serviceSubset: stable` | Routes only to the `stable` subset defined in `ServiceResolver`. This is the safety net that prevents traffic from accidentally reaching unhealthy or canary pods. |
+| `destination.prefixRewrite: /api/` | **Critical.** When Envoy matches on `pathPrefix`, it *strips* the matched prefix before forwarding by default. Setting `prefixRewrite` to the same value (`/api/`) tells Envoy to replace the prefix with itself — a no-op rewrite that preserves the full original path. Without this, `/api/items` would arrive at the api-server as `/items` (404). |
 | `destination.requestTimeout: 10s` | Envoy enforces this timeout at the proxy layer, independently of any application-level timeout. If the api-server takes longer than 10 s to respond, Envoy returns a 504 Gateway Timeout without waiting for the app. |
 
 **Why is this needed even with a single subset?**  
 Without `ServiceRouter`, Consul routes to any healthy instance regardless of path or timeout.
 Declaring the router explicitly (a) enforces the timeout, (b) pins traffic to the passing subset,
 and (c) gives you a ready-made extension point for the routing rules in Steps 10–12.
+
+**`prefixRewrite` is required whenever `pathPrefix` is set.**  
+This is an Envoy behaviour: path-prefix matching implies prefix stripping. Always pair `pathPrefix`
+with `prefixRewrite` unless you *intentionally* want the prefix removed at the destination (e.g.
+routing `/api/v1/` → a service that expects its routes without the `/api/v1` prefix).
 
 **Prerequisite chain:** `ServiceRouter` requires `ServiceDefaults` to declare `protocol: http`.
 Without it, Consul treats the service as TCP and the router is ignored entirely.
