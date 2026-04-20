@@ -1,6 +1,6 @@
 # TODO — consul-mesh-poc Session Tracker
 
-> Last updated: Step 13 complete (full production observability — Prometheus + Grafana + Jaeger)
+> Last updated: Step 11 complete (A/B testing demo)
 > Use this file to resume work across sessions. Each step includes its status and the exact prompt to send to continue.
 
 ---
@@ -19,7 +19,7 @@
 | 8    | Deploy Scripts                           | ✅ Complete  |
 | 9    | docs/reference/CONSUL_NOTES.md           | ✅ Complete  |
 | 10   | Blue-Green Deployment Demo               | ✅ Complete  |
-| 11   | A/B Testing Demo                         | ⏳ Pending   |
+| 11   | A/B Testing Demo                         | ✅ Complete  |
 | 12   | Canary Deployment Demo                   | ⏳ Pending   |
 | 13   | Full Production Observability            | ✅ Complete  |
 
@@ -27,9 +27,9 @@
 
 ## Next Step to Execute
 
-**Step 11 — A/B Testing Demo.**  
+**Step 12 — Canary Deployment Demo.**  
 Prompt to resume:
-> "We are on Step 11. Implement A/B testing demo artifacts. Use Consul ServiceRouter header-based routing to send requests with `X-User-Group: beta` to api-server variant-b. Update the UI to let the user toggle the beta header and show which variant responded."
+> "We are on Step 12. Implement canary deployment demo artifacts. Use Consul ServiceRouter weighted splits to gradually shift traffic from api-server v1 to v2. Add a promote script that increments weights, a rollback script, and a real-time visualisation in the UI showing v1 vs v2 hit counts."
 
 ---
 
@@ -103,15 +103,19 @@ Artifacts written:
 
 ---
 
-### Step 11 — A/B Testing Demo ⏳
+### Step 11 — A/B Testing Demo ✅
 Goal: split traffic between two variants based on a request header (e.g. `X-User-Group: beta`).
 
-Planned artifacts:
-- `api-server/k8s/deployment-variant-b.yaml` — variant B Deployment (different items response or feature flag)
-- `consul/servicerouter-ab.yaml` — ServiceRouter with `headerPreconditions` routing beta users to variant B
-- `consul/serviceresolver-ab.yaml` — ServiceResolver subsets `variant-a` / `variant-b`
-- Updated `ui-app/src/index.html` — toggle to send `X-User-Group: beta` header; shows which variant served the response
-- `scripts/ab-switch.sh` — helper to apply/remove the A/B router config
+Artifacts written:
+- `api-server/k8s/deployment-variant-b.yaml` — variant B Deployment with `APP_VARIANT=variant-b` and Consul `service-meta-variant`
+- `consul/servicerouter-ab.yaml` — ServiceRouter matching `x-user-group: beta` and routing to subset `variant-b`
+- `consul/serviceresolver-ab.yaml` — ServiceResolver defining `variant-a` / `variant-b` subsets from `Service.Meta.variant`
+- `api-server/k8s/deployment.yaml` — updated with `APP_VARIANT=variant-a` and Consul `service-meta-variant`
+- `api-server/src/index.js` — emits `X-Api-Variant` and reports variant on `/health`
+- `api-server/src/routes/items.js` — variant B decorates item responses for a visible beta experience
+- `ui-app/server.js` — forwards `x-api-variant` from the mesh-routed api response
+- `ui-app/src/index.html` — beta toggle sends `X-User-Group: beta` and shows the responding variant
+- `scripts/ab-switch.sh` — helper to enable, disable, or inspect A/B routing
 
 Resume prompt:
 > "We are on Step 11. Implement A/B testing demo artifacts. Use Consul ServiceRouter header-based routing to send requests with `X-User-Group: beta` to api-server variant-b. Update the UI to let the user toggle the beta header and show which variant responded."
@@ -133,7 +137,7 @@ Resume prompt:
 
 ---
 
-### Step 13 — Full Production Observability ⏳
+### Step 13 — Full Production Observability ✅
 Goal: replace the in-memory demo counter with a production-grade observability stack (Prometheus + Grafana + distributed tracing).
 
 Planned artifacts:

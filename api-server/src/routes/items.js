@@ -2,6 +2,7 @@ const { Router } = require('express');
 const { pool } = require('../db/cockroach');
 
 const router = Router();
+const APP_VARIANT = process.env.APP_VARIANT || 'variant-a';
 
 function parseItemPayload(body) {
   const { name, description } = body || {};
@@ -22,11 +23,23 @@ function parseItemPayload(body) {
   };
 }
 
+function decorateItem(item) {
+  if (APP_VARIANT !== 'variant-b' || !item) {
+    return item;
+  }
+
+  return {
+    ...item,
+    name: `Beta · ${item.name}`,
+    description: item.description ? `${item.description} (beta preview)` : 'beta preview',
+  };
+}
+
 // GET all items
 router.get('/', async (_req, res) => {
   try {
     const { rows } = await pool.query('SELECT * FROM items ORDER BY id');
-    res.json(rows);
+    res.json(rows.map(decorateItem));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -37,7 +50,7 @@ router.get('/:id', async (req, res) => {
   try {
     const { rows } = await pool.query('SELECT * FROM items WHERE id = $1', [req.params.id]);
     if (!rows.length) return res.status(404).json({ error: 'Not found' });
-    res.json(rows[0]);
+    res.json(decorateItem(rows[0]));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -54,7 +67,7 @@ router.post('/', async (req, res) => {
       'INSERT INTO items (name, description) VALUES ($1, $2) RETURNING *',
       [name, description]
     );
-    res.status(201).json(rows[0]);
+    res.status(201).json(decorateItem(rows[0]));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -72,7 +85,7 @@ router.put('/:id', async (req, res) => {
       [name, description, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Not found' });
-    res.json(rows[0]);
+    res.json(decorateItem(rows[0]));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -86,7 +99,7 @@ router.delete('/:id', async (req, res) => {
       [req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Not found' });
-    res.json({ deleted: rows[0] });
+    res.json({ deleted: decorateItem(rows[0]) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

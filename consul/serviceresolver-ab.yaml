@@ -1,0 +1,17 @@
+apiVersion: consul.hashicorp.com/v1alpha1
+kind: ServiceResolver
+metadata:
+  name: api-server
+  namespace: default
+spec:
+  connectTimeout: 5s
+  defaultSubset: variant-a
+  subsets:
+    stable:
+      onlyPassing: true
+    variant-a:
+      filter: 'Service.Meta.variant == "variant-a"'
+      onlyPassing: true
+    variant-b:
+      filter: 'Service.Meta.variant == "variant-b"'
+      onlyPassing: true

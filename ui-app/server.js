@@ -47,6 +47,8 @@ app.all('/api/*', async (req, res) => {
     // Forward the version header so the browser UI can show the version badge
     const apiVersion = apiRes.headers.get('x-api-version');
     if (apiVersion) res.set('x-api-version', apiVersion);
+    const apiVariant = apiRes.headers.get('x-api-variant');
+    if (apiVariant) res.set('x-api-variant', apiVariant);
 
     // Track per-version hit counts for the live traffic dashboard
     if (apiVersion) {

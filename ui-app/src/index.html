@@ -32,6 +32,25 @@
     #version-badge.v2 { background: #2e7d32; }   /* green */
     #version-badge.unknown { background: #757575; }
 
+    #ab-banner {
+      display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+      margin-bottom: 1rem; padding: 0.75rem 1rem;
+      border: 1px solid #ead3a5; border-radius: 8px; background: #fff8e8;
+      font-size: 0.92rem;
+    }
+    #ab-meta { display: flex; flex-wrap: wrap; gap: 0.75rem; color: #6b5b2e; }
+    #variant-badge {
+      display: inline-block; padding: 0.2rem 0.65rem;
+      border-radius: 999px; font-weight: 700; font-size: 0.8rem;
+      color: #fff; letter-spacing: 0.04em;
+    }
+    #variant-badge.variant-a { background: #7b1fa2; }
+    #variant-badge.variant-b { background: #ef6c00; }
+    #variant-badge.unknown { background: #757575; }
+    #beta-toggle-row { display: flex; align-items: center; gap: 0.65rem; }
+    #beta-toggle { width: 1rem; height: 1rem; accent-color: #ef6c00; }
+    #beta-hint { color: #6b5b2e; font-size: 0.85rem; }
+
     /* Traffic monitor */
     #traffic-monitor {
       margin: 1rem 0; padding: 0.75rem 1rem;
@@ -53,6 +72,21 @@
     <span id="version-badge" class="unknown">–</span>
     <span id="version-label" style="color:#555"></span>
   </div>
+
+  <section id="ab-banner">
+    <div>
+      <div id="beta-toggle-row">
+        <input id="beta-toggle" type="checkbox" />
+        <label for="beta-toggle">Send <code>X-User-Group: beta</code></label>
+      </div>
+      <div id="beta-hint">Turn this on to route requests to the beta variant through Consul.</div>
+    </div>
+    <div id="ab-meta">
+      <span>Variant:</span>
+      <span id="variant-badge" class="unknown">–</span>
+      <span id="variant-label">waiting for response</span>
+    </div>
+  </section>
 
   <section id="traffic-monitor">
     <h2>Traffic Monitor</h2>
@@ -88,6 +122,11 @@
     const itemsBody = document.getElementById('items-body');
     const versionBadge = document.getElementById('version-badge');
     const versionLabel = document.getElementById('version-label');
+    const betaToggle = document.getElementById('beta-toggle');
+    const variantBadge = document.getElementById('variant-badge');
+    const variantLabel = document.getElementById('variant-label');
+
+    betaToggle.checked = localStorage.getItem('beta-enabled') === 'true';
 
     function updateVersionBadge(version) {
       const v = (version || 'unknown').toLowerCase();
@@ -98,11 +137,40 @@
       versionLabel.textContent = labels[v] || v;
     }
 
+    function updateVariantBadge(variant) {
+      const v = (variant || 'unknown').toLowerCase();
+      variantBadge.textContent = v.toUpperCase();
+      variantBadge.className = '';
+      variantBadge.classList.add(v === 'variant-a' ? 'variant-a' : v === 'variant-b' ? 'variant-b' : 'unknown');
+      const headerMode = betaToggle.checked ? 'beta header enabled' : 'beta header disabled';
+      const labels = {
+        'variant-a': 'Stable experience',
+        'variant-b': 'Beta experience',
+        unknown: 'waiting for response',
+      };
+      variantLabel.textContent = `${labels[v] || v} · ${headerMode}`;
+    }
+
+    function buildRequestHeaders(extra = {}) {
+      const headers = { ...extra };
+      if (betaToggle.checked) {
+        headers['X-User-Group'] = 'beta';
+      }
+      return headers;
+    }
+
+    async function apiFetch(path, options = {}) {
+      const opts = { ...options };
+      opts.headers = buildRequestHeaders(options.headers || {});
+      return fetch(path, opts);
+    }
+
     async function loadItems() {
       try {
-        const res = await fetch('/api/items');
+        const res = await apiFetch('/api/items');
         if (!res.ok) throw new Error(await res.text());
         updateVersionBadge(res.headers.get('x-api-version'));
+        updateVariantBadge(res.headers.get('x-api-variant'));
         const items = await res.json();
         itemsBody.innerHTML = items.map(i => `
           <tr>
@@ -122,7 +190,7 @@
       if (!button) return;
 
       try {
-        const res = await fetch(`/api/items/${button.dataset.id}`, { method: 'DELETE' });
+        const res = await apiFetch(`/api/items/${button.dataset.id}`, { method: 'DELETE' });
         if (!res.ok) throw new Error(await res.text());
         await loadItems();
       } catch (err) {
@@ -135,7 +203,7 @@
       const name = document.getElementById('name').value.trim();
       const description = document.getElementById('description').value.trim();
       try {
-        const res = await fetch('/api/items', {
+        const res = await apiFetch('/api/items', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name, description }),
@@ -203,8 +271,9 @@
       btn.disabled = true;
       btn.textContent = 'Simulating…';
       for (let i = 0; i < 20; i++) {
-        const res = await fetch('/api/items');
+        const res = await apiFetch('/api/items');
         updateVersionBadge(res.headers.get('x-api-version'));
+        updateVariantBadge(res.headers.get('x-api-variant'));
         await new Promise(r => setTimeout(r, 150));
       }
       btn.disabled = false;
@@ -217,6 +286,13 @@
       applyStats({ v1: 0, v2: 0, total: 0, timeline: [] });
     });
 
+    betaToggle.addEventListener('change', async () => {
+      localStorage.setItem('beta-enabled', String(betaToggle.checked));
+      updateVariantBadge(betaToggle.checked ? 'unknown' : 'variant-a');
+      await loadItems();
+    });
+
+    updateVariantBadge(betaToggle.checked ? 'unknown' : 'variant-a');
     loadItems();
   </script>
 </body>
