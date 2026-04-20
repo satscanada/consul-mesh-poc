@@ -1,29 +1,30 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: api-server
+  name: api-server-v2
   namespace: default
   labels:
     app: api-server
+    version: v2
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: api-server
+      version: v2
   template:
     metadata:
       labels:
         app: api-server
-        version: v1
+        version: v2
       annotations:
-        # Tells Consul to inject the Envoy sidecar proxy
         consul.hashicorp.com/connect-inject: "true"
         # Expose version as Consul service metadata for subset filtering
-        consul.hashicorp.com/service-meta-version: "v1"
+        consul.hashicorp.com/service-meta-version: "v2"
     spec:
       containers:
         - name: api-server
-          image: api-server:latest
+          image: api-server:v2
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -32,7 +33,7 @@ spec:
             - name: PORT
               value: "3000"
             - name: APP_VERSION
-              value: "v1"
+              value: "v2"
             - name: DB_HOST
               valueFrom:
                 secretKeyRef:

@@ -1,0 +1,18 @@
+apiVersion: consul.hashicorp.com/v1alpha1
+kind: ServiceRouter
+metadata:
+  name: api-server
+  namespace: default
+spec:
+  routes:
+    # All /api/* traffic is pinned to an explicit subset.
+    # Change serviceSubset to "v2" (or use scripts/blue-green-cutover.sh)
+    # to perform a hard cutover to the green deployment.
+    - match:
+        http:
+          pathPrefix: /api/
+      destination:
+        service: api-server
+        serviceSubset: v1   # ← "v1" = blue  |  "v2" = green
+        prefixRewrite: /api/
+        requestTimeout: 10s

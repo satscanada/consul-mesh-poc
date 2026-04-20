@@ -13,6 +13,7 @@ A minimal but complete two-service application deployed on Docker Desktop Kubern
 - **Traffic intentions** (replaces Istio `AuthorizationPolicy`)
 - **Service routing / resolution** primitives (replaces Istio `VirtualService`)
 - **Ingress** via Consul IngressGateway (replaces Istio `Gateway` + `VirtualService`)
+- **Blue-green deployments** with one-command automated cutover and live traffic visualization
 
 ---
 
@@ -81,8 +82,8 @@ consul-mesh-poc/
 │       └── servicedefaults.yaml # Consul CRD — protocol: http
 ├── ui-app/
 │   ├── src/
-│   │   └── index.html           # Vanilla JS SPA
-│   ├── server.js                # Static server + /api/* proxy
+│   │   └── index.html           # Vanilla JS SPA — version badge + live traffic chart (Chart.js SSE)
+│   ├── server.js                # Static server + /api/* proxy + SSE traffic stats endpoints
 │   ├── Dockerfile
 │   ├── package.json
 │   └── k8s/
@@ -95,11 +96,17 @@ consul-mesh-poc/
 │   ├── proxydefaults.yaml       # Global mTLS strict + protocol http
 │   ├── servicerouter.yaml       # Route /health on api-server
 │   ├── serviceresolver.yaml     # Default resolver, 5s connect timeout
+│   ├── servicerouter-blue-green.yaml   # Blue-green ServiceRouter (subset v1 or v2)
+│   ├── serviceresolver-blue-green.yaml # Blue-green ServiceResolver (v1/v2 subsets by meta tag)
 │   └── ingressgateway.yaml      # Expose ui-app on port 8080
 ├── scripts/
 │   ├── install-consul.sh        # Helm install with safety checks
 │   ├── deploy-all.sh            # Build images, create secrets, apply manifests
+│   ├── blue-green-cutover.sh    # Full automated blue-green cutover (build→apply→wait→route)
+│   ├── rotate-injector-cert.sh  # Fix expired Consul webhook TLS cert
 │   └── teardown.sh              # Remove apps + CRDs in correct order (keeps Consul)
+├── blue-green.md                # Blue-green demo testing guide
+├── visualize.md                 # Traffic visualization dashboard build tracker
 ├── consul-mesh-poc.postman_collection.json  # Postman collection for items API
 ├── README.md                    # This file
 ├── QUICKSTART.md                # End-to-end run guide
@@ -123,6 +130,10 @@ consul-mesh-poc/
 | 7 | Consul mesh config entries (ProxyDefaults, Router, Resolver, Ingress) | ✅ Done |
 | 8 | `deploy-all.sh` + `teardown.sh` | ✅ Done |
 | 9 | `CONSUL_NOTES.md` — Istio → Consul reference guide | ✅ Done |
+| 10 | Blue-green deployment demo (automated cutover + live traffic chart) | ✅ Done |
+| 11 | A/B testing demo | ⏳ Pending |
+| 12 | Canary deployment demo | ⏳ Pending |
+| 13 | Full production observability (Prometheus + Grafana + Jaeger) | ⏳ Pending |
 | — | `.env.example`, `.gitignore`, `.env` loading in deploy script | ✅ Done |
 | — | CockroachDB `verify-full` TLS — CA cert as k8s Secret | ✅ Done |
 | — | `ui-app/k8s/servicedefaults.yaml` — protocol: http for IngressGateway compat | ✅ Done |
@@ -158,6 +169,11 @@ open http://localhost:8080
 # 7. (Optional) Open the Consul UI
 kubectl port-forward svc/consul-ui -n consul 8500:80
 open http://localhost:8500
+
+# 8. Run the blue-green cutover demo
+./scripts/blue-green-cutover.sh v2   # build v2, deploy, shift traffic → green
+# Open http://localhost:4000 — badge flips to green, Traffic Monitor chart updates live
+./scripts/blue-green-cutover.sh v1   # roll back to blue
 ```
 
 ---

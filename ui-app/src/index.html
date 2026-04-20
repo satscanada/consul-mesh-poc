@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Consul Mesh PoC — Items</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
   <style>
     body { font-family: system-ui, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
     h1 { color: #c0392b; }
@@ -15,10 +16,59 @@
     button { padding: 0.4rem 0.9rem; border: none; border-radius: 4px; cursor: pointer; background: #c0392b; color: #fff; }
     button.del { background: #888; font-size: 0.8rem; }
     #status { margin-top: 0.75rem; color: #555; font-size: 0.9rem; }
+
+    /* Blue-green version badge */
+    #version-banner {
+      display: flex; align-items: center; gap: 0.75rem;
+      margin-bottom: 1rem; padding: 0.5rem 0.75rem;
+      border-radius: 6px; background: #f0f0f0; font-size: 0.9rem;
+    }
+    #version-badge {
+      display: inline-block; padding: 0.2rem 0.65rem;
+      border-radius: 4px; font-weight: 700; font-size: 0.85rem;
+      color: #fff; letter-spacing: 0.04em;
+    }
+    #version-badge.v1 { background: #1565c0; }   /* blue  */
+    #version-badge.v2 { background: #2e7d32; }   /* green */
+    #version-badge.unknown { background: #757575; }
+
+    /* Traffic monitor */
+    #traffic-monitor {
+      margin: 1rem 0; padding: 0.75rem 1rem;
+      border: 1px solid #ddd; border-radius: 6px; background: #fafafa;
+    }
+    #traffic-monitor h2 { font-size: 1rem; margin: 0 0 0.6rem; color: #333; }
+    #traffic-meta { font-size: 0.85rem; color: #555; margin: 0.4rem 0; }
+    #traffic-log { font-size: 0.8rem; color: #666; padding-left: 1.2rem; margin: 0.4rem 0; min-height: 1rem; }
+    .traffic-actions { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+    #btn-simulate { background: #1565c0; color: #fff; }
+    #btn-reset    { background: #888;    color: #fff; }
   </style>
 </head>
 <body>
   <h1>Items — Consul Mesh PoC</h1>
+
+  <div id="version-banner">
+    <span>API backend:</span>
+    <span id="version-badge" class="unknown">–</span>
+    <span id="version-label" style="color:#555"></span>
+  </div>
+
+  <section id="traffic-monitor">
+    <h2>Traffic Monitor</h2>
+    <canvas id="traffic-chart" height="80"></canvas>
+    <p id="traffic-meta">
+      Total requests: <strong id="traffic-total">0</strong>
+      &nbsp;&nbsp;|&nbsp;&nbsp;
+      Last updated: <span id="traffic-updated">—</span>
+    </p>
+    <p style="font-size:0.8rem;color:#555;margin:0.2rem 0 0">Recent requests:</p>
+    <ul id="traffic-log"></ul>
+    <div class="traffic-actions">
+      <button id="btn-simulate">Simulate 20 requests</button>
+      <button id="btn-reset">Reset</button>
+    </div>
+  </section>
 
   <table id="items-table">
     <thead><tr><th>ID</th><th>Name</th><th>Description</th><th></th></tr></thead>
@@ -36,11 +86,23 @@
   <script>
     const status = document.getElementById('status');
     const itemsBody = document.getElementById('items-body');
+    const versionBadge = document.getElementById('version-badge');
+    const versionLabel = document.getElementById('version-label');
+
+    function updateVersionBadge(version) {
+      const v = (version || 'unknown').toLowerCase();
+      versionBadge.textContent = v.toUpperCase();
+      versionBadge.className = '';
+      versionBadge.classList.add(v === 'v1' ? 'v1' : v === 'v2' ? 'v2' : 'unknown');
+      const labels = { v1: '🔵 Blue (stable)', v2: '🟢 Green (new)', unknown: 'unknown' };
+      versionLabel.textContent = labels[v] || v;
+    }
 
     async function loadItems() {
       try {
         const res = await fetch('/api/items');
         if (!res.ok) throw new Error(await res.text());
+        updateVersionBadge(res.headers.get('x-api-version'));
         const items = await res.json();
         itemsBody.innerHTML = items.map(i => `
           <tr>
@@ -91,6 +153,69 @@
     function escHtml(str) {
       return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     }
+
+    // ── Traffic Monitor ───────────────────────────────────────────────────────
+
+    // Chart.js horizontal bar chart
+    const chart = new Chart(document.getElementById('traffic-chart').getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: ['v1 — Blue (stable)', 'v2 — Green (new)'],
+        datasets: [{
+          data: [0, 0],
+          backgroundColor: ['#1565c0', '#2e7d32'],
+          borderRadius: 4,
+        }],
+      },
+      options: {
+        indexAxis: 'y',
+        plugins: { legend: { display: false } },
+        scales: { x: { beginAtZero: true, ticks: { precision: 0 } } },
+        animation: { duration: 300 },
+      },
+    });
+
+    function applyStats(s) {
+      chart.data.datasets[0].data = [s.v1, s.v2];
+      chart.update();
+      document.getElementById('traffic-total').textContent = s.total;
+      document.getElementById('traffic-updated').textContent = new Date().toLocaleTimeString();
+      const last5 = (s.timeline || []).slice(-5).reverse();
+      document.getElementById('traffic-log').innerHTML = last5.length
+        ? last5.map(e => `<li>${new Date(e.ts).toLocaleTimeString()} \u2192 ${escHtml(e.version)}</li>`).join('')
+        : '<li style="list-style:none;color:#aaa">No requests yet</li>';
+    }
+
+    // SSE — push updates every 1 s from the server
+    (function connectSSE() {
+      const sse = new EventSource('/internal/stats/stream');
+      sse.onmessage = (e) => applyStats(JSON.parse(e.data));
+      sse.onerror = () => {
+        sse.close();
+        // Reconnect after 3 s if the stream drops
+        setTimeout(connectSSE, 3000);
+      };
+    })();
+
+    // Simulate 20 sequential requests so the chart animates in real time
+    document.getElementById('btn-simulate').addEventListener('click', async () => {
+      const btn = document.getElementById('btn-simulate');
+      btn.disabled = true;
+      btn.textContent = 'Simulating…';
+      for (let i = 0; i < 20; i++) {
+        const res = await fetch('/api/items');
+        updateVersionBadge(res.headers.get('x-api-version'));
+        await new Promise(r => setTimeout(r, 150));
+      }
+      btn.disabled = false;
+      btn.textContent = 'Simulate 20 requests';
+    });
+
+    // Reset counters on the server and clear the chart immediately
+    document.getElementById('btn-reset').addEventListener('click', async () => {
+      await fetch('/internal/stats', { method: 'DELETE' });
+      applyStats({ v1: 0, v2: 0, total: 0, timeline: [] });
+    });
 
     loadItems();
   </script>
