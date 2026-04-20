@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Consul Mesh PoC — Canary Demo</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --stable: #0f4c81;
+      --canary: #f28c28;
+      --panel: #fffdf8;
+      --ink: #1f2933;
+      --muted: #52606d;
+      --line: #e5dccd;
+      --bg: linear-gradient(180deg, #fff8ec 0%, #fffdf9 100%);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+    }
+    .shell {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 2rem 1rem 3rem;
+    }
+    .hero {
+      display: grid;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      padding: 1.5rem;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.82);
+      box-shadow: 0 18px 40px rgba(64, 47, 24, 0.08);
+    }
+    .eyebrow {
+      display: inline-block;
+      width: fit-content;
+      padding: 0.3rem 0.65rem;
+      border-radius: 999px;
+      background: #fff0d7;
+      color: #8a4b08;
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    h1 { margin: 0; font-size: clamp(2rem, 5vw, 3.4rem); line-height: 1; }
+    .lead { margin: 0; color: var(--muted); max-width: 62ch; }
+    .hero-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
+    }
+    .metric {
+      padding: 1rem;
+      border-radius: 14px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+    }
+    .metric h2 {
+      margin: 0 0 0.45rem;
+      font-size: 0.82rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .metric strong {
+      display: block;
+      font-size: 1.85rem;
+    }
+    .metric span { color: var(--muted); font-size: 0.95rem; }
+    .controls,
+    .results {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    .signal {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-top: 1rem;
+      padding: 0.95rem 1rem;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: rgba(255, 252, 246, 0.94);
+    }
+    .signal-copy {
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+    .signal-copy strong {
+      display: block;
+      margin-bottom: 0.2rem;
+      color: var(--ink);
+      font-size: 1rem;
+    }
+    .version-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 5.5rem;
+      padding: 0.55rem 0.9rem;
+      border-radius: 999px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      color: white;
+      background: #7b8794;
+    }
+    .version-pill.v1 { background: var(--stable); }
+    .version-pill.v2 { background: var(--canary); }
+    .version-pill.unknown { background: #7b8794; }
+    .panel {
+      padding: 1rem 1.15rem;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.88);
+      border: 1px solid var(--line);
+      box-shadow: 0 10px 28px rgba(64, 47, 24, 0.06);
+    }
+    .panel h2 { margin-top: 0; }
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-top: 1rem;
+    }
+    button {
+      border: none;
+      border-radius: 999px;
+      padding: 0.7rem 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      color: white;
+      background: var(--stable);
+    }
+    button.secondary { background: var(--canary); }
+    button.ghost { background: #7b8794; }
+    button:disabled { opacity: 0.6; cursor: wait; }
+    .legend {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-top: 0.75rem;
+      font-size: 0.95rem;
+      color: var(--muted);
+    }
+    .dot {
+      width: 0.8rem;
+      height: 0.8rem;
+      border-radius: 999px;
+      display: inline-block;
+      margin-right: 0.45rem;
+    }
+    .list {
+      margin: 0.75rem 0 0;
+      padding-left: 1.2rem;
+      color: var(--muted);
+    }
+    #request-log {
+      max-height: 220px;
+      overflow: auto;
+      padding-left: 1rem;
+      color: var(--muted);
+    }
+    #status {
+      margin-top: 0.75rem;
+      min-height: 1.2rem;
+      color: #8a4b08;
+      font-weight: 600;
+    }
+    .subtle {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    code {
+      background: #fff2dc;
+      padding: 0.1rem 0.35rem;
+      border-radius: 6px;
+      font-size: 0.9em;
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <span class="eyebrow">Step 12 — Canary Demo</span>
+      <div>
+        <h1>Watch live traffic shift from v1 to v2.</h1>
+        <p class="lead">
+          This page measures real responses from <code>/api/version</code>. Use
+          <code>./scripts/canary-promote.sh</code> to increase the v2 share, then
+          generate traffic here and watch the observed split change.
+        </p>
+      </div>
+      <div class="hero-grid">
+        <div class="metric">
+          <h2>Last Version Seen</h2>
+          <strong id="last-version">—</strong>
+          <span id="last-timestamp">No requests yet</span>
+        </div>
+        <div class="metric">
+          <h2>Total Samples</h2>
+          <strong id="total-samples">0</strong>
+          <span>Counts from this browser session</span>
+        </div>
+        <div class="metric">
+          <h2>Configured Split</h2>
+          <strong id="configured-split">v1 100% / v2 0%</strong>
+          <span id="configured-updated">Reading Consul config...</span>
+        </div>
+        <div class="metric">
+          <h2>Observed Split</h2>
+          <strong id="observed-split">v1 0% / v2 0%</strong>
+          <span>Based on completed <code>/api/version</code> requests</span>
+        </div>
+      </div>
+      <div class="signal">
+        <div class="signal-copy">
+          <strong>Current observed backend</strong>
+          <span id="signal-label">Waiting for the first canary response.</span>
+        </div>
+        <span id="signal-pill" class="version-pill unknown">—</span>
+      </div>
+    </section>
+
+    <section class="controls">
+      <article class="panel">
+        <h2>Generate Canary Traffic</h2>
+        <p>Each request calls <code>/api/version</code> through the Consul-routed UI proxy.</p>
+        <div class="actions">
+          <button id="btn-one">Sample Once</button>
+          <button id="btn-twenty" class="secondary">Run 20 Requests</button>
+          <button id="btn-hundred" class="secondary">Run 100 Requests</button>
+          <button id="btn-reset" class="ghost">Reset Counters</button>
+        </div>
+        <p id="status"></p>
+        <ul class="list">
+          <li>Start with <code>./scripts/canary-promote.sh</code> and confirm the first 10% stage.</li>
+          <li>Keep this page open while promoting to 25%, 50%, 75%, and 100%.</li>
+          <li>Use <code>./scripts/canary-rollback.sh</code> to return immediately to stable traffic.</li>
+        </ul>
+      </article>
+
+      <article class="panel">
+        <h2>Version Distribution</h2>
+        <canvas id="canary-chart" height="210"></canvas>
+        <div class="legend">
+          <span><i class="dot" style="background: var(--stable)"></i>v1 stable</span>
+          <span><i class="dot" style="background: var(--canary)"></i>v2 canary</span>
+        </div>
+      </article>
+    </section>
+
+    <section class="results">
+      <article class="panel">
+        <h2>Recent Responses</h2>
+        <ol id="request-log">
+          <li>No requests yet</li>
+        </ol>
+      </article>
+
+      <article class="panel">
+        <h2>CLI Helpers</h2>
+        <ul class="list">
+          <li><code>./scripts/canary-promote.sh</code> walks 10 → 25 → 50 → 75 → 100 with prompts.</li>
+          <li><code>./scripts/canary-promote.sh 50</code> jumps directly to a specific v2 share.</li>
+          <li><code>./scripts/canary-promote.sh --skip-build</code> reuses an existing <code>api-server:v2</code> image.</li>
+          <li><code>./scripts/canary-rollback.sh</code> sets the splitter to 100% <code>v1</code>.</li>
+        </ul>
+      </article>
+    </section>
+  </main>
+
+  <script>
+    const state = { v1: 0, v2: 0, total: 0, recent: [] };
+    const statusEl = document.getElementById('status');
+    const lastVersionEl = document.getElementById('last-version');
+    const lastTimestampEl = document.getElementById('last-timestamp');
+    const totalSamplesEl = document.getElementById('total-samples');
+    const configuredSplitEl = document.getElementById('configured-split');
+    const configuredUpdatedEl = document.getElementById('configured-updated');
+    const observedSplitEl = document.getElementById('observed-split');
+    const requestLogEl = document.getElementById('request-log');
+    const signalLabelEl = document.getElementById('signal-label');
+    const signalPillEl = document.getElementById('signal-pill');
+    const buttons = {
+      one: document.getElementById('btn-one'),
+      twenty: document.getElementById('btn-twenty'),
+      hundred: document.getElementById('btn-hundred'),
+      reset: document.getElementById('btn-reset'),
+    };
+
+    const chart = new Chart(document.getElementById('canary-chart').getContext('2d'), {
+      type: 'doughnut',
+      data: {
+        labels: ['v1 stable', 'v2 canary'],
+        datasets: [{
+          data: [0, 0],
+          backgroundColor: ['#0f4c81', '#f28c28'],
+          borderWidth: 0,
+          hoverOffset: 8,
+        }],
+      },
+      options: {
+        plugins: {
+          legend: { display: false },
+        },
+        cutout: '65%',
+        animation: { duration: 250 },
+      },
+    });
+
+    function refreshView() {
+      chart.data.datasets[0].data = [state.v1, state.v2];
+      chart.update();
+      totalSamplesEl.textContent = String(state.total);
+
+      const v1Pct = state.total ? Math.round((state.v1 / state.total) * 100) : 0;
+      const v2Pct = state.total ? Math.round((state.v2 / state.total) * 100) : 0;
+      observedSplitEl.textContent = `v1 ${v1Pct}% / v2 ${v2Pct}%`;
+
+      if (!state.recent.length) {
+        requestLogEl.innerHTML = '<li>No requests yet</li>';
+        return;
+      }
+
+      requestLogEl.innerHTML = state.recent.map((entry) => (
+        `<li>${new Date(entry.at).toLocaleTimeString()} — ${entry.version.toUpperCase()}</li>`
+      )).join('');
+    }
+
+    function updateSignal(version) {
+      const normalized = (version || 'unknown').toLowerCase();
+      signalPillEl.textContent = normalized === 'unknown' ? '—' : normalized.toUpperCase();
+      signalPillEl.className = `version-pill ${normalized === 'v1' || normalized === 'v2' ? normalized : 'unknown'}`;
+      const labels = {
+        v1: 'Stable v1 is serving the latest observed request.',
+        v2: 'Canary v2 is serving the latest observed request.',
+        unknown: 'Waiting for the first canary response.',
+      };
+      signalLabelEl.textContent = labels[normalized] || labels.unknown;
+    }
+
+    async function refreshConfiguredSplit() {
+      try {
+        const res = await fetch('/internal/canary-config');
+        if (!res.ok) {
+          throw new Error(await res.text());
+        }
+
+        const payload = await res.json();
+        const splits = Array.isArray(payload.splits) ? payload.splits : [];
+        const weights = Object.fromEntries(splits.map((split) => [split.subset, Number(split.weight || 0)]));
+        const v1 = Number(weights.v1 || 0);
+        const v2 = Number(weights.v2 || 0);
+
+        configuredSplitEl.textContent = `v1 ${v1}% / v2 ${v2}%`;
+        configuredUpdatedEl.textContent = `Read from Consul at ${new Date().toLocaleTimeString()}`;
+      } catch (err) {
+        configuredUpdatedEl.textContent = `Unable to read configured split: ${err.message}`;
+      }
+    }
+
+    async function sampleVersion() {
+      const res = await fetch('/api/version');
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
+
+      const body = await res.json();
+      const version = (body.version || res.headers.get('x-api-version') || 'unknown').toLowerCase();
+      if (version === 'v1' || version === 'v2') {
+        state[version] += 1;
+      }
+      state.total += 1;
+      state.recent.unshift({ version, at: Date.now() });
+      state.recent = state.recent.slice(0, 12);
+
+      lastVersionEl.textContent = version.toUpperCase();
+      lastTimestampEl.textContent = `Last response at ${new Date().toLocaleTimeString()}`;
+      updateSignal(version);
+      refreshView();
+    }
+
+    async function runTraffic(count) {
+      buttons.one.disabled = true;
+      buttons.twenty.disabled = true;
+      buttons.hundred.disabled = true;
+
+      statusEl.textContent = `Sending ${count} requests through /api/version...`;
+      try {
+        await refreshConfiguredSplit();
+        for (let i = 0; i < count; i += 1) {
+          await sampleVersion();
+          await new Promise((resolve) => setTimeout(resolve, 80));
+        }
+        await refreshConfiguredSplit();
+        statusEl.textContent = `Finished ${count} canary requests.`;
+      } catch (err) {
+        statusEl.textContent = `Canary request failed: ${err.message}`;
+      } finally {
+        buttons.one.disabled = false;
+        buttons.twenty.disabled = false;
+        buttons.hundred.disabled = false;
+      }
+    }
+
+    buttons.one.addEventListener('click', async () => {
+      statusEl.textContent = 'Sampling one request...';
+      try {
+        await refreshConfiguredSplit();
+        await sampleVersion();
+        await refreshConfiguredSplit();
+        statusEl.textContent = 'Captured one canary sample.';
+      } catch (err) {
+        statusEl.textContent = `Canary request failed: ${err.message}`;
+      }
+    });
+
+    buttons.twenty.addEventListener('click', () => runTraffic(20));
+    buttons.hundred.addEventListener('click', () => runTraffic(100));
+    buttons.reset.addEventListener('click', () => {
+      state.v1 = 0;
+      state.v2 = 0;
+      state.total = 0;
+      state.recent = [];
+      lastVersionEl.textContent = '—';
+      lastTimestampEl.textContent = 'No requests yet';
+      updateSignal('unknown');
+      statusEl.textContent = 'Counters reset.';
+      refreshConfiguredSplit();
+      refreshView();
+    });
+
+    updateSignal('unknown');
+    refreshConfiguredSplit();
+    refreshView();
+  </script>
+</body>
+</html>

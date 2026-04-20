@@ -1,6 +1,6 @@
 # TODO — consul-mesh-poc Session Tracker
 
-> Last updated: Step 11 complete (A/B testing demo)
+> Last updated: Step 12 complete (canary deployment demo)
 > Use this file to resume work across sessions. Each step includes its status and the exact prompt to send to continue.
 
 ---
@@ -20,16 +20,14 @@
 | 9    | docs/reference/CONSUL_NOTES.md           | ✅ Complete  |
 | 10   | Blue-Green Deployment Demo               | ✅ Complete  |
 | 11   | A/B Testing Demo                         | ✅ Complete  |
-| 12   | Canary Deployment Demo                   | ⏳ Pending   |
+| 12   | Canary Deployment Demo                   | ✅ Complete  |
 | 13   | Full Production Observability            | ✅ Complete  |
 
 ---
 
 ## Next Step to Execute
 
-**Step 12 — Canary Deployment Demo.**  
-Prompt to resume:
-> "We are on Step 12. Implement canary deployment demo artifacts. Use Consul ServiceRouter weighted splits to gradually shift traffic from api-server v1 to v2. Add a promote script that increments weights, a rollback script, and a real-time visualisation in the UI showing v1 vs v2 hit counts."
+**All planned steps are complete.**
 
 ---
 
@@ -122,15 +120,19 @@ Resume prompt:
 
 ---
 
-### Step 12 — Canary Deployment Demo ⏳
+### Step 12 — Canary Deployment Demo ✅
 Goal: gradually shift traffic from v1 to a canary (v2) using weighted splits, visualised in real time.
 
-Planned artifacts:
-- `consul/servicerouter-canary.yaml` — ServiceRouter with weight-based split (e.g. 90/10 → 50/50 → 0/100)
-- `scripts/canary-promote.sh` — steps through traffic weights (10 → 25 → 50 → 75 → 100%) with a confirmation prompt at each stage
-- `scripts/canary-rollback.sh` — instantly shifts 100% back to v1
-- Updated `ui-app/src/index.html` — live pie/bar chart showing v1 vs v2 response counts (uses a `/api/version` endpoint)
-- `api-server/src/routes/version.js` — `/api/version` endpoint that returns the pod's version label
+Artifacts written:
+- `consul/servicerouter-canary.yaml` — ServiceRouter for `/api/*` canary traffic without pinning a subset
+- `consul/serviceresolver-canary.yaml` — ServiceResolver defining `v1` / `v2` subsets for canary routing
+- `consul/servicesplitter-canary.yaml` — ServiceSplitter implementing weighted traffic between `v1` and `v2`
+- `scripts/canary-promote.sh` — builds `api-server:v2`, applies canary config, and steps through 10 → 25 → 50 → 75 → 100% v2 traffic
+- `scripts/canary-rollback.sh` — instantly restores 100% traffic to `v1`
+- `api-server/src/routes/version.js` — `/api/version` endpoint returning the active pod version and variant
+- `api-server/src/index.js` — mounts the new version endpoint
+- `ui-app/src/canary.html` — dedicated canary page with live chart driven by `/api/version` responses
+- `ui-app/server.js` — serves `/canary` without altering the existing index page
 
 Resume prompt:
 > "We are on Step 12. Implement canary deployment demo artifacts. Use Consul ServiceRouter weighted splits to gradually shift traffic from api-server v1 to v2. Add a promote script that increments weights, a rollback script, and a real-time visualisation in the UI showing v1 vs v2 hit counts."

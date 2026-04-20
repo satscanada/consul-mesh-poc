@@ -14,6 +14,9 @@ A minimal but complete two-service application deployed on Docker Desktop Kubern
 - **Service routing / resolution** primitives (replaces Istio `VirtualService`)
 - **Ingress** via Consul IngressGateway (replaces Istio `Gateway` + `VirtualService`)
 - **Blue-green deployments** with one-command automated cutover and live traffic visualization
+- **A/B testing** with header-based routing to stable vs beta variants
+- **Canary deployments** with weighted traffic shifting from `v1` to `v2`
+- **Observability** with Prometheus, Grafana, and Jaeger
 
 ---
 
@@ -82,8 +85,9 @@ consul-mesh-poc/
 │       └── servicedefaults.yaml # Consul CRD — protocol: http
 ├── ui-app/
 │   ├── src/
-│   │   └── index.html           # Vanilla JS SPA — version badge + live traffic chart (Chart.js SSE)
-│   ├── server.js                # Static server + /api/* proxy + SSE traffic stats endpoints
+│   │   ├── index.html           # Main SPA — items UI + version badge + A/B controls
+│   │   └── canary.html          # Dedicated canary traffic visualization page
+│   ├── server.js                # Static server + /api/* proxy + internal demo endpoints
 │   ├── Dockerfile
 │   ├── package.json
 │   └── k8s/
@@ -98,11 +102,20 @@ consul-mesh-poc/
 │   ├── serviceresolver.yaml     # Default resolver, 5s connect timeout
 │   ├── servicerouter-blue-green.yaml   # Blue-green ServiceRouter (subset v1 or v2)
 │   ├── serviceresolver-blue-green.yaml # Blue-green ServiceResolver (v1/v2 subsets by meta tag)
+│   ├── servicerouter-ab.yaml           # Header-based A/B router
+│   ├── serviceresolver-ab.yaml         # Variant subsets for A/B demo
+│   ├── servicerouter-canary.yaml       # Canary router for /api/* traffic
+│   ├── serviceresolver-canary.yaml     # v1/v2 subsets for canary
+│   ├── servicesplitter-canary.yaml     # Weighted traffic split for canary rollout
 │   └── ingressgateway.yaml      # Expose ui-app on port 8080
 ├── scripts/
 │   ├── install-consul.sh        # Helm install with safety checks
 │   ├── deploy-all.sh            # Build images, create secrets, apply manifests
+│   ├── deploy-apps.sh           # Rebuild/redeploy only api-server and ui-app workloads
 │   ├── blue-green-cutover.sh    # Full automated blue-green cutover (build→apply→wait→route)
+│   ├── ab-switch.sh             # Enable/disable A/B demo routing
+│   ├── canary-promote.sh        # Promote canary traffic through weighted stages
+│   ├── canary-rollback.sh       # Instantly roll traffic back to v1
 │   ├── rotate-injector-cert.sh  # Fix expired Consul webhook TLS cert
 │   └── teardown.sh              # Remove apps + CRDs in correct order (keeps Consul)
 ├── docs/
@@ -110,6 +123,8 @@ consul-mesh-poc/
 │   │   └── ISTIO_VS_CONSUL.md   # Istio vs Consul comparison notes
 │   ├── demos/
 │   │   ├── blue-green.md        # Blue-green demo testing guide
+│   │   ├── ab.md                # A/B testing guide
+│   │   ├── canary.md            # Canary rollout guide
 │   │   └── visualize.md         # Traffic visualization dashboard build tracker
 │   ├── observability/
 │   │   └── OBSERVABILITY.md     # Observability runbook and PromQL guide
@@ -139,9 +154,9 @@ consul-mesh-poc/
 | 8 | `deploy-all.sh` + `teardown.sh` | ✅ Done |
 | 9 | `docs/reference/CONSUL_NOTES.md` — Istio → Consul reference guide | ✅ Done |
 | 10 | Blue-green deployment demo (automated cutover + live traffic chart) | ✅ Done |
-| 11 | A/B testing demo | ⏳ Pending |
-| 12 | Canary deployment demo | ⏳ Pending |
-| 13 | Full production observability (Prometheus + Grafana + Jaeger) | ⏳ Pending |
+| 11 | A/B testing demo | ✅ Done |
+| 12 | Canary deployment demo | ✅ Done |
+| 13 | Full production observability (Prometheus + Grafana + Jaeger) | ✅ Done |
 | — | `.env.example`, `.gitignore`, `.env` loading in deploy script | ✅ Done |
 | — | CockroachDB `verify-full` TLS — CA cert as k8s Secret | ✅ Done |
 | — | `ui-app/k8s/servicedefaults.yaml` — protocol: http for IngressGateway compat | ✅ Done |
@@ -182,7 +197,16 @@ open http://localhost:8500
 ./scripts/blue-green-cutover.sh v2   # build v2, deploy, shift traffic → green
 # Open http://localhost:4000 — badge flips to green, Traffic Monitor chart updates live
 ./scripts/blue-green-cutover.sh v1   # roll back to blue
+
+# 9. Rebuild only the app workloads after UI/API changes
+./scripts/deploy-apps.sh
 ```
+
+Demo guides:
+- [docs/demos/blue-green.md](./docs/demos/blue-green.md)
+- [docs/demos/ab.md](./docs/demos/ab.md)
+- [docs/demos/canary.md](./docs/demos/canary.md)
+- [docs/observability/OBSERVABILITY.md](./docs/observability/OBSERVABILITY.md)
 
 ---
 

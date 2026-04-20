@@ -1,0 +1,14 @@
+apiVersion: consul.hashicorp.com/v1alpha1
+kind: ServiceRouter
+metadata:
+  name: api-server
+  namespace: default
+spec:
+  routes:
+    - match:
+        http:
+          pathPrefix: /api/
+      destination:
+        service: api-server
+        prefixRewrite: /api/
+        requestTimeout: 10s

@@ -103,6 +103,86 @@ app.delete('/internal/stats', (_req, res) => {
   res.json({ reset: true });
 });
 
+app.get('/canary', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'src', 'canary.html'));
+});
+
+app.get('/internal/canary-config', async (_req, res) => {
+  const { default: fetch } = await import('node-fetch');
+
+  function collectRoutes(node, acc = []) {
+    if (!node || typeof node !== 'object') return acc;
+    if (Array.isArray(node)) {
+      for (const item of node) collectRoutes(item, acc);
+      return acc;
+    }
+    if (Array.isArray(node.routes)) {
+      acc.push(...node.routes);
+    }
+    for (const value of Object.values(node)) {
+      collectRoutes(value, acc);
+    }
+    return acc;
+  }
+
+  function normalizeClusterName(name) {
+    return String(name || '').toLowerCase();
+  }
+
+  try {
+    const response = await fetch('http://127.0.0.1:19000/config_dump');
+    if (!response.ok) {
+      return res.status(response.status).json({
+        error: 'Unable to read Envoy config dump',
+        detail: await response.text(),
+      });
+    }
+
+    const payload = await response.json();
+    const routes = collectRoutes(payload);
+    const weightedRoute = routes.find((route) => {
+      const prefix = route?.match?.prefix || route?.match?.pathSeparatedPrefix || '';
+      const clusters = route?.route?.weighted_clusters?.clusters;
+      if (!Array.isArray(clusters) || !String(prefix).startsWith('/api')) return false;
+      return clusters.some((cluster) => {
+        const name = normalizeClusterName(cluster?.name);
+        return name.includes('api-server') && (name.includes('v1') || name.includes('v2'));
+      });
+    });
+
+    const clusters = weightedRoute?.route?.weighted_clusters?.clusters;
+    if (!Array.isArray(clusters) || !clusters.length) {
+      return res.status(404).json({
+        error: 'Configured canary split not found in Envoy route config',
+        detail: 'No weighted api-server route is currently active in the sidecar config dump.',
+      });
+    }
+
+    const rawSplits = clusters
+      .map((cluster) => {
+        const name = normalizeClusterName(cluster?.name);
+        const subset = name.includes('v2') ? 'v2' : name.includes('v1') ? 'v1' : 'default';
+        return {
+          subset,
+          weight: Number(cluster?.weight?.value ?? cluster?.weight ?? 0),
+        };
+      })
+      .filter((split) => split.subset === 'v1' || split.subset === 'v2');
+
+    const totalWeight = rawSplits.reduce((sum, split) => sum + split.weight, 0);
+    const splits = totalWeight > 0
+      ? rawSplits.map((split) => ({
+          subset: split.subset,
+          weight: Math.round((split.weight / totalWeight) * 100),
+        }))
+      : rawSplits;
+
+    return res.json({ splits });
+  } catch (err) {
+    return res.status(502).json({ error: 'canary config unavailable', detail: err.message });
+  }
+});
+
 // Serve SPA for all other routes
 app.get('*', (_req, res) => {
   res.sendFile(path.join(__dirname, 'src', 'index.html'));

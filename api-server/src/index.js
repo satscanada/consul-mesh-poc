@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const { initSchema } = require('./db/cockroach');
 const itemsRouter = require('./routes/items');
+const versionRouter = require('./routes/version');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -18,6 +19,7 @@ app.use((_req, res, next) => {
 });
 
 app.get('/health', (_req, res) => res.json({ status: 'ok', version: APP_VERSION, variant: APP_VARIANT }));
+app.use('/api/version', versionRouter);
 app.use('/api/items', itemsRouter);
 
 initSchema()
