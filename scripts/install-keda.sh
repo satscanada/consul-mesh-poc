@@ -87,7 +87,11 @@ success "Helm repo 'kedacore' is up to date."
 # 2. Create namespace
 # -----------------------------------------------------------------------
 info "Ensuring namespace '${KEDA_NAMESPACE}' exists..."
-run kubectl create namespace "${KEDA_NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
+if [[ "$DRY_RUN" == true ]]; then
+  echo -e "${YELLOW}[DRY-RUN]${NC} kubectl create namespace ${KEDA_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -"
+else
+  kubectl create namespace "${KEDA_NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
+fi
 success "Namespace '${KEDA_NAMESPACE}' ready."
 
 # -----------------------------------------------------------------------
@@ -139,19 +143,25 @@ REQUIRED_CRDS=(
   "clustertriggerauthentications.keda.sh"
 )
 
-ALL_OK=true
-for crd in "${REQUIRED_CRDS[@]}"; do
-  if kubectl get crd "${crd}" &>/dev/null; then
-    success "CRD registered: ${crd}"
-  else
-    error  "CRD MISSING:    ${crd}"
-    ALL_OK=false
-  fi
-done
+if [[ "$DRY_RUN" == true ]]; then
+  for crd in "${REQUIRED_CRDS[@]}"; do
+    echo -e "${YELLOW}[DRY-RUN]${NC} kubectl get crd ${crd}"
+  done
+else
+  ALL_OK=true
+  for crd in "${REQUIRED_CRDS[@]}"; do
+    if kubectl get crd "${crd}" &>/dev/null; then
+      success "CRD registered: ${crd}"
+    else
+      error  "CRD MISSING:    ${crd}"
+      ALL_OK=false
+    fi
+  done
 
-if [[ "$ALL_OK" != true ]]; then
-  error "One or more CRDs are missing. Check 'helm status keda -n keda' for details."
-  exit 1
+  if [[ "$ALL_OK" != true ]]; then
+    error "One or more CRDs are missing. Check 'helm status keda -n keda' for details."
+    exit 1
+  fi
 fi
 
 # -----------------------------------------------------------------------
@@ -164,16 +174,20 @@ echo -e "${GREEN}=========================================================${NC}"
 echo ""
 
 info "KEDA pods:"
-kubectl get pods -n "${KEDA_NAMESPACE}"
+run kubectl get pods -n "${KEDA_NAMESPACE}"
 
 echo ""
 info "ScaledObjects across all namespaces (should be empty until Step 14.3):"
-kubectl get scaledobject -A 2>/dev/null || warn "No ScaledObjects found yet (expected at this stage)."
+run kubectl get scaledobject -A 2>/dev/null || warn "No ScaledObjects found yet (expected at this stage)."
 
 echo ""
 info "Installed KEDA version:"
-helm list -n "${KEDA_NAMESPACE}" --filter "^${KEDA_RELEASE}$" \
-  --output table 2>/dev/null | tail -n +2 | awk '{print "  Chart:", $9, "  App:", $10}'
+if [[ "$DRY_RUN" != true ]]; then
+  helm list -n "${KEDA_NAMESPACE}" --filter "^${KEDA_RELEASE}$" \
+    --output table 2>/dev/null | tail -n +2 | awk '{print "  Chart:", $9, "  App:", $10}'
+else
+  echo -e "${YELLOW}[DRY-RUN]${NC} helm list -n ${KEDA_NAMESPACE} --filter ^${KEDA_RELEASE}$"
+fi
 
 echo ""
 echo -e "${CYAN}Next steps:${NC}"
