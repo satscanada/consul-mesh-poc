@@ -6,7 +6,7 @@ A step-by-step guide to get the full POC running from a clean machine.
 
 ## Prerequisites
 
-Before running any scripts, complete the prerequisites described in [K8S.md](./K8S.md):
+Before running any scripts, complete the prerequisites described in [docs/setup/K8S.md](./docs/setup/K8S.md):
 - Docker Desktop installed with Kubernetes enabled
 - `kubectl` configured to target `docker-desktop` context
 - Helm 3 installed

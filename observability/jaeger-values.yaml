@@ -1,0 +1,60 @@
+# Jaeger all-in-one Helm values for consul-mesh-poc
+# Chart  : jaegertracing/jaeger
+# Install: see observability/quickstart.md
+# Tested : jaeger chart >= 0.71.x
+#
+# This deploys Jaeger all-in-one (in-memory storage) — suitable for local dev.
+# For production replace the storage backend with Cassandra or Elasticsearch.
+
+provisionDataStore:
+  cassandra: false
+  elasticsearch: false
+  kafka: false
+
+# Use in-memory storage — wipes on pod restart, fine for demo
+storage:
+  type: memory
+
+allInOne:
+  enabled: true
+  image:
+    tag: "1.55.0"
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+  # Jaeger UI port-forward:
+  #   kubectl port-forward svc/jaeger-query 16686:80
+  ingress:
+    enabled: false
+
+  # -----------------------------------------------------------------------
+  # Collector receives spans via Zipkin/B3 compatible endpoint.
+  # Envoy emits traces in Zipkin/B3 format — collector listens on :9411
+  # -----------------------------------------------------------------------
+  extraEnv:
+    - name: COLLECTOR_ZIPKIN_HOST_PORT
+      value: ":9411"
+
+agent:
+  enabled: false   # all-in-one already embeds the agent
+
+collector:
+  enabled: false   # all-in-one already embeds the collector
+
+query:
+  enabled: false   # all-in-one already embeds the query UI
+
+# -----------------------------------------------------------------------
+# Service — expose Zipkin ingest and Jaeger UI ports
+# -----------------------------------------------------------------------
+service:
+  type: ClusterIP
+
+# Named ports used by Envoy tracing config in proxydefaults-tracing.yaml:
+#   zipkin collector  : jaeger-all-in-one.default.svc.cluster.local:9411
+#   jaeger UI (query) : jaeger-all-in-one.default.svc.cluster.local:16686
