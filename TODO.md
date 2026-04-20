@@ -1,6 +1,6 @@
 # TODO — consul-mesh-poc Session Tracker
 
-> Last updated: Step 10 complete (blue-green + live viz dashboard); Steps 11–13 pending
+> Last updated: Step 13 complete (full production observability — Prometheus + Grafana + Jaeger)
 > Use this file to resume work across sessions. Each step includes its status and the exact prompt to send to continue.
 
 ---
@@ -17,11 +17,11 @@
 | 6    | ui-app Kubernetes Manifests + Intentions | ✅ Complete  |
 | 7    | Consul Mesh Config Entries               | ✅ Complete  |
 | 8    | Deploy Scripts                           | ✅ Complete  |
-| 9    | CONSUL_NOTES.md                          | ✅ Complete  |
+| 9    | docs/reference/CONSUL_NOTES.md           | ✅ Complete  |
 | 10   | Blue-Green Deployment Demo               | ✅ Complete  |
 | 11   | A/B Testing Demo                         | ⏳ Pending   |
 | 12   | Canary Deployment Demo                   | ⏳ Pending   |
-| 13   | Full Production Observability            | ⏳ Pending   |
+| 13   | Full Production Observability            | ✅ Complete  |
 
 ---
 
@@ -37,7 +37,7 @@ Prompt to resume:
 
 ### Step 1 — Repo Scaffold ✅
 - Created all directories and empty files for the full project tree.
-- Extra files added: `TODO.md`, `QUICKSTART.md`, `K8S.md`
+- Extra files added: `TODO.md`, `QUICKSTART.md`, `docs/setup/K8S.md`
 
 ### Step 2 — Consul Helm Values + Install Script ✅
 Files to write:
@@ -82,9 +82,9 @@ Files written:
 - `scripts/deploy-all.sh`
 - `scripts/teardown.sh`
 
-### Step 9 — CONSUL_NOTES.md ✅
+### Step 9 — docs/reference/CONSUL_NOTES.md ✅
 File written:
-- `CONSUL_NOTES.md`
+- `docs/reference/CONSUL_NOTES.md`
 
 ---
 
@@ -142,7 +142,7 @@ Planned artifacts:
 - `observability/jaeger-values.yaml` — Helm values for Jaeger all-in-one (or Tempo); configure Envoy to emit traces
 - `consul/proxydefaults-tracing.yaml` — updated ProxyDefaults enabling Envoy tracing via Jaeger/Tempo endpoint
 - `scripts/install-observability.sh` — installs the full stack via Helm; prints port-forward commands for Grafana (3000), Prometheus (9090), Jaeger (16686)
-- `OBSERVABILITY.md` — guide: how to read the per-subset traffic split dashboard, how to query `rate(envoy_cluster_upstream_rq_total[1m])`, example PromQL for RED metrics
+- `docs/observability/OBSERVABILITY.md` — guide: how to read the per-subset traffic split dashboard, how to query `rate(envoy_cluster_upstream_rq_total[1m])`, example PromQL for RED metrics
 
 Key Envoy metrics to visualise:
 - `envoy_cluster_upstream_rq_total{consul_destination_service_subset="v1|v2"}` — request rate per subset

@@ -1,0 +1,66 @@
+apiVersion: consul.hashicorp.com/v1alpha1
+kind: ProxyDefaults
+metadata:
+  # ProxyDefaults is a global singleton — name must be "global"
+  name: global
+  namespace: default
+spec:
+  # Enforce mutual TLS for all service-to-service traffic in the mesh
+  meshGateway:
+    mode: local
+
+  config:
+    # -----------------------------------------------------------------------
+    # Distributed tracing via Zipkin-compatible Jaeger collector
+    #
+    # Envoy emits a B3/Zipkin trace for every upstream request.
+    # The collector endpoint is the Jaeger all-in-one service deployed by
+    # observability/jaeger-values.yaml, reachable inside the cluster at:
+    #   http://jaeger-all-in-one.default.svc.cluster.local:9411
+    #
+    # Adjust the address if you installed Jaeger in a different namespace.
+    # -----------------------------------------------------------------------
+    envoy_tracing_json: |
+      {
+        "http": {
+          "name": "envoy.tracers.zipkin",
+          "typedConfig": {
+            "@type": "type.googleapis.com/envoy.config.trace.v3.ZipkinConfig",
+            "collector_cluster": "jaeger_zipkin",
+            "collector_endpoint": "/api/v2/spans",
+            "collector_endpoint_version": "HTTP_JSON",
+            "shared_span_context": false,
+            "trace_id_128bit": true
+          }
+        }
+      }
+
+    # Static cluster definition for the Jaeger Zipkin ingest endpoint.
+    # This must match the cluster name in envoy_tracing_json above.
+    envoy_extra_static_clusters_json: |
+      {
+        "name": "jaeger_zipkin",
+        "type": "STRICT_DNS",
+        "connect_timeout": "5s",
+        "load_assignment": {
+          "cluster_name": "jaeger_zipkin",
+          "endpoints": [
+            {
+              "lb_endpoints": [
+                {
+                  "endpoint": {
+                    "address": {
+                      "socket_address": {
+                        "address": "jaeger-all-in-one.default.svc.cluster.local",
+                        "port_value": 9411
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+
+  transparentProxy: {}

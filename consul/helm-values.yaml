@@ -53,6 +53,9 @@ connectInject:
   default: false
   metrics:
     defaultEnabled: true
+    # Keep sidecar metrics on 20200 separate from any app /metrics endpoint.
+    # Merging breaks Prometheus scraping here because ui-app serves HTML on
+    # /metrics and api-server does not expose a Prometheus payload there.
     defaultEnableMerging: false
 
 # -------------------------------------------------------------------

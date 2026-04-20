@@ -105,13 +105,21 @@ consul-mesh-poc/
 │   ├── blue-green-cutover.sh    # Full automated blue-green cutover (build→apply→wait→route)
 │   ├── rotate-injector-cert.sh  # Fix expired Consul webhook TLS cert
 │   └── teardown.sh              # Remove apps + CRDs in correct order (keeps Consul)
-├── blue-green.md                # Blue-green demo testing guide
-├── visualize.md                 # Traffic visualization dashboard build tracker
+├── docs/
+│   ├── comparisons/
+│   │   └── ISTIO_VS_CONSUL.md   # Istio vs Consul comparison notes
+│   ├── demos/
+│   │   ├── blue-green.md        # Blue-green demo testing guide
+│   │   └── visualize.md         # Traffic visualization dashboard build tracker
+│   ├── observability/
+│   │   └── OBSERVABILITY.md     # Observability runbook and PromQL guide
+│   ├── reference/
+│   │   └── CONSUL_NOTES.md      # Istio → Consul concept map & reference
+│   └── setup/
+│       └── K8S.md               # Docker Desktop + Consul prerequisites
 ├── consul-mesh-poc.postman_collection.json  # Postman collection for items API
 ├── README.md                    # This file
 ├── QUICKSTART.md                # End-to-end run guide
-├── K8S.md                       # Docker Desktop + Consul prerequisites
-├── CONSUL_NOTES.md              # Istio → Consul concept map & reference
 └── TODO.md                      # Step-by-step build progress tracker
 ```
 
@@ -129,7 +137,7 @@ consul-mesh-poc/
 | 6 | `ui-app` Kubernetes manifests + ServiceIntentions | ✅ Done |
 | 7 | Consul mesh config entries (ProxyDefaults, Router, Resolver, Ingress) | ✅ Done |
 | 8 | `deploy-all.sh` + `teardown.sh` | ✅ Done |
-| 9 | `CONSUL_NOTES.md` — Istio → Consul reference guide | ✅ Done |
+| 9 | `docs/reference/CONSUL_NOTES.md` — Istio → Consul reference guide | ✅ Done |
 | 10 | Blue-green deployment demo (automated cutover + live traffic chart) | ✅ Done |
 | 11 | A/B testing demo | ⏳ Pending |
 | 12 | Canary deployment demo | ⏳ Pending |
@@ -147,7 +155,7 @@ consul-mesh-poc/
 See [QUICKSTART.md](./QUICKSTART.md) for the full walkthrough. Short version:
 
 ```bash
-# 1. Prerequisites — see K8S.md
+# 1. Prerequisites — see docs/setup/K8S.md
 
 # 2. Download the CockroachDB CA certificate (one-time, per machine)
 curl --create-dirs -o $HOME/.postgresql/root.crt \
@@ -190,7 +198,7 @@ open http://localhost:8500
 | ServiceResolver | `DestinationRule` (load balancing) | `consul/serviceresolver.yaml` |
 | IngressGateway | `Gateway` + `VirtualService` | `consul/ingressgateway.yaml` |
 
-For a detailed explanation of each, see [CONSUL_NOTES.md](./CONSUL_NOTES.md) (written in Step 9).
+For a detailed explanation of each, see [docs/reference/CONSUL_NOTES.md](./docs/reference/CONSUL_NOTES.md) (written in Step 9).
 
 ---
 
@@ -202,7 +210,7 @@ For a detailed explanation of each, see [CONSUL_NOTES.md](./CONSUL_NOTES.md) (wr
 - Consul CLI (optional, for debugging)
 - A CockroachDB Cloud cluster (free tier works)
 
-See [K8S.md](./K8S.md) for detailed setup instructions.
+See [docs/setup/K8S.md](./docs/setup/K8S.md) for detailed setup instructions.
 
 ---
 

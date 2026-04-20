@@ -1,0 +1,142 @@
+# kube-prometheus-stack Helm values for consul-mesh-poc
+# Chart  : prometheus-community/kube-prometheus-stack
+# Install: see observability/quickstart.md
+# Tested : kube-prometheus-stack >= 55.x
+
+# -----------------------------------------------------------------------
+# Prometheus — scrape Envoy sidecars (Consul metrics port 20200)
+# -----------------------------------------------------------------------
+prometheus:
+  prometheusSpec:
+    # Scrape all PodMonitors / ServiceMonitors across namespaces
+    podMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelectorNilUsesHelmValues: false
+
+    # Retain 7 days of data — enough for demo analysis
+    retention: 7d
+
+    # Additional scrape configs for Consul Envoy sidecar metrics
+    # Consul annotates each injected pod with:
+    #   prometheus.io/scrape: "true"
+    #   prometheus.io/port:   "20200"
+    additionalScrapeConfigs:
+      - job_name: consul-envoy-sidecars
+        metrics_path: /metrics
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - default
+        relabel_configs:
+          # Only scrape pods opted into Connect injection
+          - source_labels: [__meta_kubernetes_pod_annotation_consul_hashicorp_com_connect_inject]
+            action: keep
+            regex: "true"
+          # Use the Envoy metrics port 20200 (Consul merged metrics port)
+          - source_labels: [__address__]
+            action: replace
+            regex: "([^:]+)(?::\\d+)?"
+            replacement: "$1:20200"
+            target_label: __address__
+          # Carry useful pod labels into Prometheus
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            target_label: app
+          - source_labels: [__meta_kubernetes_pod_label_version]
+            target_label: version
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          # Consul service subset from annotation
+          - source_labels: [__meta_kubernetes_pod_annotation_consul_hashicorp_com_service_meta_version]
+            target_label: consul_service_subset
+            regex: "(.+)"
+
+      - job_name: consul-agents
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - consul
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_component]
+            action: keep
+            regex: client|server
+          - source_labels: [__address__]
+            action: replace
+            regex: "([^:]+)(?::\\d+)?"
+            replacement: "$1:8500"
+            target_label: __address__
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+
+# -----------------------------------------------------------------------
+# Grafana — enable and pre-load the Consul dashboard
+# -----------------------------------------------------------------------
+grafana:
+  enabled: true
+  adminPassword: "admin"   # change for any shared environment
+
+  # Grafana port-forward: kubectl port-forward svc/prometheus-grafana 3000:80
+  service:
+    type: ClusterIP
+
+  # Auto-load the HashiCorp Consul dashboard (Grafana ID 13396)
+  # and our custom consul-mesh-poc dashboard from the configmap below
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: default
+          orgId: 1
+          folder: Consul
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/default
+        # Separate provider for the custom ConfigMap dashboard to avoid
+        # duplicate volume name "dashboards-default" with the gnetId entry above
+        - name: consul-poc
+          orgId: 1
+          folder: Consul
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/consul-poc
+
+  dashboards:
+    default:
+      consul-overview:
+        # HashiCorp official Consul dashboard
+        gnetId: 13396
+        revision: 2
+        datasource: Prometheus
+
+  # Mount our custom JSON dashboard (grafana-dashboard-consul.json)
+  # Key must differ from any key in `dashboards` to avoid duplicate volume names
+  dashboardsConfigMaps:
+    consul-poc: consul-mesh-poc-dashboard
+
+  # Datasource — the chart provisions a default Prometheus datasource automatically.
+  # Do NOT declare a second datasource here; Grafana rejects configs with more than
+  # one default datasource per organisation and enters CrashLoopBackOff.
+
+# -----------------------------------------------------------------------
+# Alertmanager — disabled for local dev to keep resources lean
+# -----------------------------------------------------------------------
+alertmanager:
+  enabled: false
+
+# -----------------------------------------------------------------------
+# Node exporter — DISABLED for Docker Desktop on macOS
+# The node-exporter DaemonSet requires host mount propagation (shared/slave)
+# which Docker Desktop does not support, causing CrashLoopBackOff.
+# Re-enable only on a real Linux node (e.g. EKS, GKE, bare-metal).
+# -----------------------------------------------------------------------
+nodeExporter:
+  enabled: false
+
+kubeStateMetrics:
+  enabled: true
