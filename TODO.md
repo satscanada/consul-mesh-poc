@@ -171,7 +171,7 @@ Goal: demonstrate event-driven autoscaling of `api-server` using KEDA, where Con
 
 #### Sub-step Checklist
 
-- [ ] **14.1 — Install KEDA**
+- [x] **14.1 — Install KEDA**
   - File: `scripts/install-keda.sh`
   - Add Helm repo `kedacore`, install chart `kedacore/keda` into namespace `keda`
   - Verify all CRDs are registered: `ScaledObject`, `TriggerAuthentication`, `ScaledJob`
