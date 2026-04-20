@@ -1,6 +1,6 @@
 # TODO — consul-mesh-poc Session Tracker
 
-> Last updated: Steps 10–12 queued — blue-green, A/B testing, canary demos  
+> Last updated: Step 10 complete (blue-green + live viz dashboard); Steps 11–13 pending
 > Use this file to resume work across sessions. Each step includes its status and the exact prompt to send to continue.
 
 ---
@@ -18,17 +18,18 @@
 | 7    | Consul Mesh Config Entries               | ✅ Complete  |
 | 8    | Deploy Scripts                           | ✅ Complete  |
 | 9    | CONSUL_NOTES.md                          | ✅ Complete  |
-| 10   | Blue-Green Deployment Demo               | ⏳ Pending   |
+| 10   | Blue-Green Deployment Demo               | ✅ Complete  |
 | 11   | A/B Testing Demo                         | ⏳ Pending   |
 | 12   | Canary Deployment Demo                   | ⏳ Pending   |
+| 13   | Full Production Observability            | ⏳ Pending   |
 
 ---
 
 ## Next Step to Execute
 
-**Step 10 — Blue-Green Deployment Demo.**  
+**Step 11 — A/B Testing Demo.**  
 Prompt to resume:
-> "We are on Step 10. Implement blue-green deployment demo artifacts using the existing ui-app and api-server. Use Consul ServiceRouter / ServiceResolver to split traffic between a v1 and v2 version of api-server. Add a toggle in the UI to switch between versions and visualize which backend responded. Include all k8s manifests and Consul config entries needed."
+> "We are on Step 11. Implement A/B testing demo artifacts. Use Consul ServiceRouter header-based routing to send requests with `X-User-Group: beta` to api-server variant-b. Update the UI to let the user toggle the beta header and show which variant responded."
 
 ---
 
@@ -87,19 +88,18 @@ File written:
 
 ---
 
-### Step 10 — Blue-Green Deployment Demo ⏳
+### Step 10 — Blue-Green Deployment Demo ✅
 Goal: demonstrate a live blue-green cutover using the existing ui-app and api-server.
 
-Planned artifacts:
-- `api-server-v2/` (or a v2 image tag) — same API, different response payload/colour indicator
-- `api-server/k8s/deployment-v2.yaml` — second Deployment labelled `version: v2`
-- `consul/servicerouter-blue-green.yaml` — ServiceRouter that routes 100% to v1 or v2 based on a header / weight
-- `consul/serviceresolver-blue-green.yaml` — ServiceResolver subsets for `v1` and `v2`
-- Updated `ui-app/src/index.html` — shows which version responded (colour badge: blue / green)
-- `scripts/blue-green-cutover.sh` — one-command toggle between v1 and v2
-
-Resume prompt:
-> "We are on Step 10. Implement blue-green deployment demo artifacts using the existing ui-app and api-server. Use Consul ServiceRouter/ServiceResolver subsets to route between api-server v1 and v2. Add a visible version badge in the UI (blue for v1, green for v2) and a cutover script. Show it in the Consul UI."
+Artifacts written:
+- `api-server/k8s/deployment.yaml` — updated: added `version: v1` pod label, `consul.hashicorp.com/service-meta-version: v1` annotation, `APP_VERSION: v1` env
+- `api-server/k8s/deployment-v2.yaml` — new Deployment labelled `version: v2`, image `api-server:v2`, env `APP_VERSION: v2`
+- `consul/servicerouter-blue-green.yaml` — ServiceRouter routing 100% to explicit subset (v1 or v2)
+- `consul/serviceresolver-blue-green.yaml` — ServiceResolver with `v1` and `v2` subsets filtered by `Service.Meta.version`
+- `api-server/src/index.js` — emits `X-Api-Version` response header based on `APP_VERSION` env
+- `ui-app/server.js` — forwards `x-api-version` header from api-server to browser
+- `ui-app/src/index.html` — version badge: blue for v1, green for v2
+- `scripts/blue-green-cutover.sh` — patches ServiceRouter + ServiceResolver to flip all traffic between v1 and v2
 
 ---
 
@@ -130,3 +130,25 @@ Planned artifacts:
 
 Resume prompt:
 > "We are on Step 12. Implement canary deployment demo artifacts. Use Consul ServiceRouter weighted splits to gradually shift traffic from api-server v1 to v2. Add a promote script that increments weights, a rollback script, and a real-time visualisation in the UI showing v1 vs v2 hit counts."
+
+---
+
+### Step 13 — Full Production Observability ⏳
+Goal: replace the in-memory demo counter with a production-grade observability stack (Prometheus + Grafana + distributed tracing).
+
+Planned artifacts:
+- `observability/prometheus-values.yaml` — Helm values for `kube-prometheus-stack`; adds scrape annotations for Consul Envoy sidecar port `20200`
+- `observability/grafana-dashboard-consul.json` — import of HashiCorp Consul dashboard (Grafana ID 13396); add custom panel for `envoy_cluster_upstream_rq_total{consul_destination_service_subset=~"v1|v2"}`
+- `observability/jaeger-values.yaml` — Helm values for Jaeger all-in-one (or Tempo); configure Envoy to emit traces
+- `consul/proxydefaults-tracing.yaml` — updated ProxyDefaults enabling Envoy tracing via Jaeger/Tempo endpoint
+- `scripts/install-observability.sh` — installs the full stack via Helm; prints port-forward commands for Grafana (3000), Prometheus (9090), Jaeger (16686)
+- `OBSERVABILITY.md` — guide: how to read the per-subset traffic split dashboard, how to query `rate(envoy_cluster_upstream_rq_total[1m])`, example PromQL for RED metrics
+
+Key Envoy metrics to visualise:
+- `envoy_cluster_upstream_rq_total{consul_destination_service_subset="v1|v2"}` — request rate per subset
+- `envoy_cluster_upstream_rq_time_bucket` — latency histogram per subset
+- `envoy_cluster_upstream_cx_active` — active connections per subset
+- `envoy_cluster_upstream_rq_xx{envoy_response_code_class="5"}` — error rate
+
+Resume prompt:
+> "We are on Step 13. Set up production observability for the consul-mesh-poc. Install Prometheus + Grafana via kube-prometheus-stack Helm chart. Add a Grafana dashboard that shows real-time per-subset request rate (v1 vs v2) using Envoy metrics. Add Jaeger for distributed tracing and update ProxyDefaults to emit traces."

@@ -1,0 +1,24 @@
+apiVersion: consul.hashicorp.com/v1alpha1
+kind: ServiceResolver
+metadata:
+  name: api-server
+  namespace: default
+spec:
+  connectTimeout: 5s
+  # Active version — change to "v2" to complete the blue→green cutover
+  # (or use scripts/blue-green-cutover.sh to toggle automatically)
+  defaultSubset: v1
+  subsets:
+    # Keep the "stable" subset so existing ServiceRouter entries that reference
+    # it don't cause a validation deadlock during the blue-green transition.
+    # "stable" has no filter → matches ALL healthy api-server instances.
+    stable:
+      onlyPassing: true
+    v1:
+      # Selects pods that registered with service metadata version=v1
+      filter: 'Service.Meta.version == "v1"'
+      onlyPassing: true
+    v2:
+      # Selects pods that registered with service metadata version=v2
+      filter: 'Service.Meta.version == "v2"'
+      onlyPassing: true
