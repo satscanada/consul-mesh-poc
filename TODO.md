@@ -1,6 +1,6 @@
 # TODO — consul-mesh-poc Session Tracker
 
-> Last updated: Step 13 complete (full production observability)
+> Last updated: Step 14 complete (KEDA autoscaling with Consul metrics)
 > Use this file to resume work across sessions. Each step includes its status and the exact prompt to send to continue.
 
 ---
@@ -22,7 +22,7 @@
 | 11   | A/B Testing Demo                         | ✅ Complete  |
 | 12   | Canary Deployment Demo                   | ✅ Complete  |
 | 13   | Full Production Observability            | ✅ Complete  |
-| 14   | KEDA Autoscaling with Consul Metrics     | ⬜ Pending   |
+| 14   | KEDA Autoscaling with Consul Metrics     | ✅ Complete  |
 
 ---
 
@@ -178,14 +178,14 @@ Goal: demonstrate event-driven autoscaling of `api-server` using KEDA, where Con
   - Print `kubectl get scaledobject -A` and `kubectl get pods -n keda` for confirmation
   - _Validate:_ KEDA operator pod is Running before proceeding
 
-- [ ] **14.2 — TriggerAuthentication for Prometheus**
+- [x] **14.2 — TriggerAuthentication for Prometheus**
   - File: `keda/triggerauthentication.yaml`
   - Kind: `TriggerAuthentication` in `default` namespace
   - Reference the in-cluster Prometheus service (`http://prometheus-operated.monitoring.svc:9090`)
   - No secret needed for unauthenticated Prometheus; include commented-out block for bearer-token auth as a production reference
   - _Validate:_ `kubectl describe triggerauthentication prometheus-trigger-auth`
 
-- [ ] **14.3 — ScaledObject for api-server v1**
+- [x] **14.3 — ScaledObject for api-server v1**
   - File: `keda/scaledobject-api-server.yaml`
   - `scaleTargetRef.name` must match Deployment name in `api-server/k8s/deployment.yaml`
   - Prometheus trigger: `rate(envoy_cluster_upstream_rq_total{consul_destination_service="api-server",consul_destination_service_subset="v1"}[1m])`
@@ -193,13 +193,13 @@ Goal: demonstrate event-driven autoscaling of `api-server` using KEDA, where Con
   - `pollingInterval: 15`, `cooldownPeriod: 60`
   - _Validate:_ `kubectl describe scaledobject api-server` shows `Active: True` under load
 
-- [ ] **14.4 — ScaledObject for api-server v2 (canary)**
+- [x] **14.4 — ScaledObject for api-server v2 (canary)**
   - File: `keda/scaledobject-api-server-v2.yaml`
   - Same structure as 14.3 but targets the v2 Deployment and filters subset `v2`
   - Allows v1 and v2 pods to scale independently during a canary rollout
   - _Validate:_ both ScaledObjects coexist without HPA conflict (`kubectl get hpa`)
 
-- [ ] **14.5 — Update traffic-generation script**
+- [x] **14.5 — Update traffic-generation script**
   - File: `scripts/generate-api-traffic.sh` (existing file — update, do not replace)
   - Add `--rps <n>` flag (default: 10) and `--duration <s>` flag (default: 60)
   - Run load inside the cluster via `kubectl run` with `curlimages/curl` loop (no external dependency)
@@ -207,7 +207,7 @@ Goal: demonstrate event-driven autoscaling of `api-server` using KEDA, where Con
   - Calls with no flags must behave identically to before (backward-compatible)
   - _Validate:_ `./generate-api-traffic.sh --rps 100 --duration 120` triggers scale-up
 
-- [ ] **14.6 — Grafana dashboard for KEDA**
+- [x] **14.6 — Grafana dashboard for KEDA**
   - File: `observability/grafana-dashboard-keda.json`
   - Self-contained JSON, importable via the same mechanism as `grafana-dashboard-consul.json`
   - Required panels:
@@ -218,7 +218,7 @@ Goal: demonstrate event-driven autoscaling of `api-server` using KEDA, where Con
     5. Scale events — annotation overlay sourced from Kubernetes events or a time-series marker
   - _Validate:_ dashboard imports cleanly; all panels resolve data during a load test
 
-- [ ] **14.7 — KEDA Autoscaling guide**
+- [x] **14.7 — KEDA Autoscaling guide**
   - File: `docs/observability/KEDA_AUTOSCALING.md`
   - Sections to cover:
     1. **Architecture overview** — KEDA components (operator, metrics adapter, ScaledObject, TriggerAuthentication) and how KEDA creates/manages the HPA internally
