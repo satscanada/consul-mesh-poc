@@ -1,0 +1,110 @@
+# Consul OSS Helm values — Amazon EKS (dev / staging)
+# Chart: hashicorp/consul  (1.9.x or later)
+# Reference: https://developer.hashicorp.com/consul/docs/k8s/helm
+#
+# Differences from helm-values-eks.yaml (prod):
+#   - server.replicas: 1  (single server, no HA — lower cost)
+#   - server.disruptionBudget: disabled
+#   - server.storage: 2Gi
+#   - server.storageClass: gp2
+#   - No AZ anti-affinity rules (single node is fine for dev)
+#   - ingressGateways.replicas: 1
+#   - NLB scheme: internal  (same as prod — dev clusters should still be private)
+#   - Resources are reduced throughout
+
+global:
+  name: consul
+  datacenter: dc1-dev
+
+  # -------------------------------------------------------------------
+  # TLS
+  # -------------------------------------------------------------------
+  tls:
+    enabled: true
+    enableAutoEncrypt: true
+    verify: true
+    httpsOnly: false
+
+  # -------------------------------------------------------------------
+  # Metrics
+  # -------------------------------------------------------------------
+  metrics:
+    enabled: true
+    enableAgentMetrics: true
+    agentMetricsRetentionTime: "1m"
+    enableHostMetrics: true
+
+# -------------------------------------------------------------------
+# Server — single replica for dev (no HA, lower cost)
+# -------------------------------------------------------------------
+server:
+  replicas: 1
+  bootstrapExpect: 1
+  disruptionBudget:
+    enabled: false             # PDB blocks single-replica restarts
+  storageClass: gp2
+  storage: 2Gi
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  # No hard AZ anti-affinity for dev — single node is acceptable
+  affinity: ""
+
+# -------------------------------------------------------------------
+# Connect Inject
+# -------------------------------------------------------------------
+connectInject:
+  enabled: true
+  default: false
+  metrics:
+    defaultEnabled: true
+    defaultEnableMerging: false
+
+# -------------------------------------------------------------------
+# Controller
+# -------------------------------------------------------------------
+controller:
+  enabled: true
+
+# -------------------------------------------------------------------
+# UI — access via port-forward or an Ingress resource
+# -------------------------------------------------------------------
+ui:
+  enabled: true
+  service:
+    type: ClusterIP
+  metrics:
+    enabled: true
+    provider: prometheus
+
+# -------------------------------------------------------------------
+# Ingress Gateway — single replica for dev, internal NLB
+# -------------------------------------------------------------------
+ingressGateways:
+  enabled: true
+  defaults:
+    replicas: 1
+    hostNetwork: false
+    resources:
+      requests:
+        memory: "64Mi"
+        cpu: "50m"
+      limits:
+        memory: "128Mi"
+        cpu: "100m"
+  gateways:
+    - name: ingress-gateway
+      service:
+        type: LoadBalancer
+        # Internal NLB — keeps dev traffic off the public internet.
+        # Change aws-load-balancer-scheme to "internet-facing" only if needed.
+        annotations:
+          service.beta.kubernetes.io/aws-load-balancer-type: "external"
+          service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "ip"
+          service.beta.kubernetes.io/aws-load-balancer-scheme: "internal"
+        ports:
+          - port: 8080

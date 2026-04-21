@@ -1,0 +1,52 @@
+---
+# =============================================================================
+# ScaledObject — api-server v1 (consul-mesh-poc)
+#
+# KEDA scales the api-server (v1) Deployment based on the per-subset
+# Envoy request rate reported by Prometheus.
+#
+# Scaling signal:
+#   rate(envoy_cluster_upstream_rq_total{
+#     consul_destination_service="api-server",
+#     consul_destination_service_subset="v1"
+#   }[1m])
+#
+# Threshold: 50 rps per replica
+# Range:     1 – 10 replicas
+#
+# Prerequisites:
+#   - kube-prometheus-stack installed (Step 13)
+#   - keda/triggerauthentication.yaml applied
+# =============================================================================
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: api-server
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: api-server          # matches api-server/k8s/deployment.yaml
+
+  pollingInterval: 15         # seconds between metric polls
+  cooldownPeriod:  60         # seconds before scaling down after last trigger
+  minReplicaCount: 1
+  maxReplicaCount: 10
+
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus-operated.monitoring.svc:9090
+        metricName: envoy_rps_api_server_v1
+        # Sum all v1-subset request rate across all source pods.
+        # Threshold is per replica — KEDA divides this total by threshold
+        # to determine the desired replica count.
+        query: >-
+          sum(rate(envoy_cluster_upstream_rq_total{
+            consul_destination_service="api-server",
+            consul_destination_service_subset="v1"
+          }[1m]))
+        threshold: "50"
+      authenticationRef:
+        name: prometheus-trigger-auth

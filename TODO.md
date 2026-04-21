@@ -1,6 +1,6 @@
 # TODO — consul-mesh-poc Session Tracker
 
-> Last updated: Step 12 complete (canary deployment demo)
+> Last updated: Step 14 complete (KEDA autoscaling with Consul metrics)
 > Use this file to resume work across sessions. Each step includes its status and the exact prompt to send to continue.
 
 ---
@@ -22,12 +22,13 @@
 | 11   | A/B Testing Demo                         | ✅ Complete  |
 | 12   | Canary Deployment Demo                   | ✅ Complete  |
 | 13   | Full Production Observability            | ✅ Complete  |
+| 14   | KEDA Autoscaling with Consul Metrics     | ✅ Complete  |
 
 ---
 
 ## Next Step to Execute
 
-**All planned steps are complete.**
+**Step 14 — KEDA Autoscaling with Consul Metrics**
 
 ---
 
@@ -158,3 +159,87 @@ Key Envoy metrics to visualise:
 
 Resume prompt:
 > "We are on Step 13. Set up production observability for the consul-mesh-poc. Install Prometheus + Grafana via kube-prometheus-stack Helm chart. Add a Grafana dashboard that shows real-time per-subset request rate (v1 vs v2) using Envoy metrics. Add Jaeger for distributed tracing and update ProxyDefaults to emit traces."
+
+---
+
+### Step 14 — KEDA Autoscaling with Consul Metrics ⬜
+Goal: demonstrate event-driven autoscaling of `api-server` using KEDA, where Consul Envoy sidecar metrics (scraped by Prometheus) serve as the scaling signal. Show scale-up under synthetic load and scale-down at idle, visualised in Grafana.
+
+**Prerequisite:** Step 13 observability stack must be running (Prometheus reachable at `http://prometheus-operated.monitoring.svc:9090`).
+
+---
+
+#### Sub-step Checklist
+
+- [x] **14.1 — Install KEDA**
+  - File: `scripts/install-keda.sh`
+  - Add Helm repo `kedacore`, install chart `kedacore/keda` into namespace `keda`
+  - Verify all CRDs are registered: `ScaledObject`, `TriggerAuthentication`, `ScaledJob`
+  - Print `kubectl get scaledobject -A` and `kubectl get pods -n keda` for confirmation
+  - _Validate:_ KEDA operator pod is Running before proceeding
+
+- [x] **14.2 — TriggerAuthentication for Prometheus**
+  - File: `keda/triggerauthentication.yaml`
+  - Kind: `TriggerAuthentication` in `default` namespace
+  - Reference the in-cluster Prometheus service (`http://prometheus-operated.monitoring.svc:9090`)
+  - No secret needed for unauthenticated Prometheus; include commented-out block for bearer-token auth as a production reference
+  - _Validate:_ `kubectl describe triggerauthentication prometheus-trigger-auth`
+
+- [x] **14.3 — ScaledObject for api-server v1**
+  - File: `keda/scaledobject-api-server.yaml`
+  - `scaleTargetRef.name` must match Deployment name in `api-server/k8s/deployment.yaml`
+  - Prometheus trigger: `rate(envoy_cluster_upstream_rq_total{consul_destination_service="api-server",consul_destination_service_subset="v1"}[1m])`
+  - `threshold: "50"` (rps per replica), `minReplicaCount: 1`, `maxReplicaCount: 10`
+  - `pollingInterval: 15`, `cooldownPeriod: 60`
+  - _Validate:_ `kubectl describe scaledobject api-server` shows `Active: True` under load
+
+- [x] **14.4 — ScaledObject for api-server v2 (canary)**
+  - File: `keda/scaledobject-api-server-v2.yaml`
+  - Same structure as 14.3 but targets the v2 Deployment and filters subset `v2`
+  - Allows v1 and v2 pods to scale independently during a canary rollout
+  - _Validate:_ both ScaledObjects coexist without HPA conflict (`kubectl get hpa`)
+
+- [x] **14.5 — Update traffic-generation script**
+  - File: `scripts/generate-api-traffic.sh` (existing file — update, do not replace)
+  - Add `--rps <n>` flag (default: 10) and `--duration <s>` flag (default: 60)
+  - Run load inside the cluster via `kubectl run` with `curlimages/curl` loop (no external dependency)
+  - Print live replica count every 5 s during the test: `kubectl get deployment api-server -w`
+  - Calls with no flags must behave identically to before (backward-compatible)
+  - _Validate:_ `./generate-api-traffic.sh --rps 100 --duration 120` triggers scale-up
+
+- [x] **14.6 — Grafana dashboard for KEDA**
+  - File: `observability/grafana-dashboard-keda.json`
+  - Self-contained JSON, importable via the same mechanism as `grafana-dashboard-consul.json`
+  - Required panels:
+    1. Request rate per subset (v1/v2) — primary scaling signal (Envoy metric)
+    2. Replica count over time — `kube_deployment_status_replicas{deployment=~"api-server.*"}`
+    3. KEDA metric value — `keda_scaler_metrics_value{scaler="prometheus"}`
+    4. Pod readiness timeline — `kube_pod_status_ready{pod=~"api-server.*"}` (scale-up latency)
+    5. Scale events — annotation overlay sourced from Kubernetes events or a time-series marker
+  - _Validate:_ dashboard imports cleanly; all panels resolve data during a load test
+
+- [x] **14.7 — KEDA Autoscaling guide**
+  - File: `docs/observability/KEDA_AUTOSCALING.md`
+  - Sections to cover:
+    1. **Architecture overview** — KEDA components (operator, metrics adapter, ScaledObject, TriggerAuthentication) and how KEDA creates/manages the HPA internally
+    2. **Why Consul/Envoy metrics** — L7 request-rate vs CPU/memory: reflects actual traffic pressure, not sidecar overhead; aware of Consul subsets
+    3. **Prerequisites & installation** — link to Step 13; `install-keda.sh` walkthrough
+    4. **Applying the ScaledObjects** — `kubectl apply -f keda/`; expected output
+    5. **Running a load test** — `generate-api-traffic.sh --rps 100 --duration 120`; what to watch
+    6. **Reading the Grafana dashboard** — panel-by-panel walkthrough; how to spot the scale lag
+    7. **Tuning reference** — table of `pollingInterval`, `cooldownPeriod`, `threshold`, `minReplicaCount`, `maxReplicaCount` with recommended values per environment tier (dev / staging / prod)
+    8. **Canary + autoscaling interaction** — how weighted Consul traffic splits affect per-subset rps and why independent ScaledObjects are needed
+    9. **Troubleshooting** — `kubectl describe scaledobject`, KEDA operator logs, HPA events, common Prometheus query errors
+    10. **Production considerations** — metric scrape lag, HPA conflict avoidance, KEDA version compatibility, Prometheus retention minimum
+  - _Validate:_ all `kubectl` commands in the doc are copy-pasteable and correct
+
+---
+
+Key Prometheus metrics used:
+- `rate(envoy_cluster_upstream_rq_total{consul_destination_service="api-server"}[1m])` — primary KEDA scale trigger
+- `kube_deployment_status_replicas{deployment=~"api-server.*"}` — replica count for Grafana
+- `keda_scaler_metrics_value` — KEDA's own scaler value exposed to Prometheus
+- `kube_pod_status_ready` — pod readiness timeline for scale-up latency panel
+
+Resume prompt:
+> "We are on Step 14. Work through the checklist sub-steps in order: 14.1 install KEDA, 14.2 TriggerAuthentication, 14.3 ScaledObject v1, 14.4 ScaledObject v2, 14.5 update traffic script, 14.6 Grafana dashboard, 14.7 KEDA_AUTOSCALING.md. Implement one sub-step at a time and confirm before proceeding to the next."

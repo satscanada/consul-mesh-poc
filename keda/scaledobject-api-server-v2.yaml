@@ -1,0 +1,51 @@
+---
+# =============================================================================
+# ScaledObject — api-server v2 / canary (consul-mesh-poc)
+#
+# KEDA scales the api-server-v2 Deployment independently from v1, using the
+# v2-subset Envoy request rate as the scaling signal.  This allows v1 and v2
+# pods to scale at different rates during a weighted canary rollout.
+#
+# Scaling signal:
+#   rate(envoy_cluster_upstream_rq_total{
+#     consul_destination_service="api-server",
+#     consul_destination_service_subset="v2"
+#   }[1m])
+#
+# Threshold: 50 rps per replica  (same as v1 for symmetric capacity)
+# Range:     1 – 10 replicas
+#
+# Prerequisites:
+#   - kube-prometheus-stack installed (Step 13)
+#   - keda/triggerauthentication.yaml applied
+#   - api-server-v2 Deployment exists (api-server/k8s/deployment-v2.yaml)
+# =============================================================================
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: api-server-v2
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: api-server-v2       # matches api-server/k8s/deployment-v2.yaml
+
+  pollingInterval: 15
+  cooldownPeriod:  60
+  minReplicaCount: 1
+  maxReplicaCount: 10
+
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus-operated.monitoring.svc:9090
+        metricName: envoy_rps_api_server_v2
+        query: >-
+          sum(rate(envoy_cluster_upstream_rq_total{
+            consul_destination_service="api-server",
+            consul_destination_service_subset="v2"
+          }[1m]))
+        threshold: "50"
+      authenticationRef:
+        name: prometheus-trigger-auth

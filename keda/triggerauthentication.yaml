@@ -1,0 +1,40 @@
+---
+# =============================================================================
+# TriggerAuthentication — consul-mesh-poc
+#
+# Configures KEDA to authenticate against the in-cluster Prometheus instance
+# deployed by kube-prometheus-stack (Step 13).
+#
+# Prometheus endpoint: http://prometheus-operated.monitoring.svc:9090
+#
+# No secret is required for unauthenticated Prometheus.
+# A commented-out bearer-token block is included below for production use.
+# =============================================================================
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: prometheus-trigger-auth
+  namespace: default
+spec:
+  # -------------------------------------------------------------------------
+  # Unauthenticated in-cluster Prometheus (default for kube-prometheus-stack
+  # deployed without auth).  No secretTargetRef needed.
+  # -------------------------------------------------------------------------
+
+  # -------------------------------------------------------------------------
+  # PRODUCTION REFERENCE — bearer-token authentication
+  # Uncomment when Prometheus is protected (e.g. behind kube-rbac-proxy or
+  # Thanos with token auth).
+  #
+  # 1. Create the secret:
+  #    kubectl create secret generic prometheus-bearer \
+  #      --from-literal=token="<your-bearer-token>" \
+  #      -n default
+  #
+  # 2. Uncomment and adjust the block below:
+  #
+  # secretTargetRef:
+  #   - parameter: bearerToken
+  #     name: prometheus-bearer
+  #     key: token
+  # -------------------------------------------------------------------------
