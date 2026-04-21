@@ -1,0 +1,130 @@
+# Consul OSS Helm values — Amazon EKS
+# Chart: hashicorp/consul  (1.9.x or later)
+# Reference: https://developer.hashicorp.com/consul/docs/k8s/helm
+#
+# Key differences from helm-values.yaml (Docker Desktop):
+#   - server.replicas: 3  (HA — matches typical 3-AZ EKS cluster)
+#   - server.affinity: spread pods across AZs
+#   - server.storageClass: gp2 (EBS)
+#   - ingressGateways: hostNetwork/dnsPolicy workarounds removed (not needed on EKS)
+#   - ingressGateways.service.type: LoadBalancer (provisions AWS NLB via AWS Load Balancer Controller)
+#   - ui.service.type: ClusterIP (access via port-forward or Ingress; avoid direct LB exposure)
+
+global:
+  name: consul
+  datacenter: dc1
+
+  # -------------------------------------------------------------------
+  # TLS
+  # -------------------------------------------------------------------
+  tls:
+    enabled: true
+    enableAutoEncrypt: true
+    verify: true
+    httpsOnly: false
+
+  # -------------------------------------------------------------------
+  # Metrics
+  # -------------------------------------------------------------------
+  metrics:
+    enabled: true
+    enableAgentMetrics: true
+    agentMetricsRetentionTime: "1m"
+    enableHostMetrics: true
+
+# -------------------------------------------------------------------
+# Server — 3-replica HA, spread across availability zones
+# -------------------------------------------------------------------
+server:
+  replicas: 3
+  bootstrapExpect: 3
+  disruptionBudget:
+    enabled: true
+    maxUnavailable: 0          # never allow more than 1 server unavailable at once
+  storageClass: gp2            # EBS gp2; switch to gp3 if your cluster has it
+  storage: 10Gi
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+  # Spread server pods across AZs for HA
+  affinity: |
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              app: consul
+              release: consul
+              component: server
+          topologyKey: topology.kubernetes.io/zone
+
+# -------------------------------------------------------------------
+# Connect Inject — Envoy sidecar injection webhook
+# -------------------------------------------------------------------
+connectInject:
+  enabled: true
+  default: false
+  metrics:
+    defaultEnabled: true
+    defaultEnableMerging: false
+
+# -------------------------------------------------------------------
+# Controller — reconciles Consul CRDs with the catalog
+# -------------------------------------------------------------------
+controller:
+  enabled: true
+
+# -------------------------------------------------------------------
+# UI — access via port-forward or an Ingress resource
+# Keep as ClusterIP; avoid exposing the UI via a public LoadBalancer.
+# -------------------------------------------------------------------
+ui:
+  enabled: true
+  service:
+    type: ClusterIP
+  metrics:
+    enabled: true
+    provider: prometheus
+
+# -------------------------------------------------------------------
+# Ingress Gateway — provisions an AWS NLB (via AWS Load Balancer Controller)
+# hostNetwork and dnsPolicy workarounds are NOT needed on EKS.
+# -------------------------------------------------------------------
+ingressGateways:
+  enabled: true
+  defaults:
+    replicas: 2                # 2 replicas for HA across AZs
+    hostNetwork: false
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+    affinity: |
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: consul
+                  release: consul
+                  component: ingress-gateway
+              topologyKey: topology.kubernetes.io/zone
+  gateways:
+    - name: ingress-gateway
+      service:
+        type: LoadBalancer
+        # Provision an internal NLB (recommended for private EKS clusters).
+        # Remove or change the annotation for a public-facing NLB.
+        annotations:
+          service.beta.kubernetes.io/aws-load-balancer-type: "external"
+          service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "ip"
+          service.beta.kubernetes.io/aws-load-balancer-scheme: "internal"
+        ports:
+          - port: 8080
